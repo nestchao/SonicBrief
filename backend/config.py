@@ -18,7 +18,8 @@ PORT = int(os.getenv("SONICBRIEF_PORT", "7860"))
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024 * 1024
 # Allow substantially longer recordings by default. Keep this configurable
 # through MAX_MEDIA_HOURS for machines that need a smaller limit.
-MAX_MEDIA_DURATION_SECONDS = int(os.getenv("MAX_MEDIA_HOURS", "12")) * 60 * 60
+MAX_MEDIA_HOURS = max(12, int(os.getenv("MAX_MEDIA_HOURS", "12")))
+MAX_MEDIA_DURATION_SECONDS = MAX_MEDIA_HOURS * 60 * 60
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_TRANSCRIPTION_MODEL = os.getenv("GEMINI_TRANSCRIPTION_MODEL", "gemini-3.5-flash-lite").strip()
