@@ -261,7 +261,7 @@ export function SonicBriefApp() {
     if (source !== "upload" && !url.trim()) { setMessage(`Paste at least one ${source === "youtube" ? "YouTube" : "Bilibili"} link.`); return; }
 
     const extractUrl = (value: string) => {
-      const match = value.match(/https?:\\/\\/[^\\s<>]+/i);
+      const match = value.match(/https?:\/\/[^\s<>]+/i);
       return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : "";
     };
     const urls = source === "upload"
