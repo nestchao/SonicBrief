@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -147,8 +148,12 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
     return candidates[0], metadata
 
 
-def local_transcribe(path: Path, model_name: str, language: str) -> dict[str, Any]:
+def local_transcribe(path: Path, model_name: str, language: str, progress_callback: Any = None) -> dict[str, Any]:
+    if progress_callback:
+        progress_callback("loading_model", 0, 0.0, f"Loading Whisper {model_name} model…")
     model, device, compute_type = get_model(model_name)
+    if progress_callback:
+        progress_callback("transcribing", 0, 0.0, f"Whisper is transcribing on {device.upper()} ({compute_type})…")
     segments_iter, info = model.transcribe(
         str(path),
         language=None if language == "auto" else language,
@@ -159,6 +164,8 @@ def local_transcribe(path: Path, model_name: str, language: str) -> dict[str, An
     )
     segments: list[dict[str, Any]] = []
     logprobs: list[float] = []
+    source_duration = float(getattr(info, "duration", 0) or 0)
+    last_report = 0.0
     for segment in segments_iter:
         text = segment.text.strip()
         if not text:
@@ -171,6 +178,17 @@ def local_transcribe(path: Path, model_name: str, language: str) -> dict[str, An
         })
         if segment.avg_logprob is not None:
             logprobs.append(float(segment.avg_logprob))
+        if progress_callback:
+            processed = min(float(segment.end), source_duration) if source_duration else float(segment.end)
+            now = time.monotonic()
+            if now - last_report >= 0.75 or (source_duration and processed >= source_duration):
+                progress_callback(
+                    "transcribing",
+                    round((processed / source_duration) * 100) if source_duration else 0,
+                    processed,
+                    f"Transcribing audio · {format_duration(processed)} / {format_duration(source_duration)}",
+                )
+                last_report = now
     average_logprob = sum(logprobs) / len(logprobs) if logprobs else -99.0
     return {
         "segments": segments,
@@ -179,6 +197,13 @@ def local_transcribe(path: Path, model_name: str, language: str) -> dict[str, An
         "average_logprob": average_logprob,
         "engine": f"local-whisper/{device}/{compute_type}",
     }
+
+
+def format_duration(seconds: float) -> str:
+    total = max(0, int(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
 def transcript_needs_fallback(result: dict[str, Any]) -> bool:
@@ -426,11 +451,22 @@ def run_job(
             normalized_path = temp_dir / "normalized.wav"
             check_cancelled(job_id)
             normalize_audio(media_path, normalized_path)
-            storage.update_job(job_id, progress=25, stage="transcribe")
+            storage.update_job(job_id, progress=25, stage="transcribe", stage_detail="Preparing Local Whisper…", stage_progress=0, processed_duration=0)
+
+            def report_transcription(stage: str, stage_progress: int, processed: float, detail: str) -> None:
+                overall = 25 + round((max(0, min(stage_progress, 100)) / 100) * 43)
+                storage.update_job(
+                    job_id,
+                    progress=overall,
+                    stage="transcribe",
+                    stage_detail=detail,
+                    stage_progress=stage_progress,
+                    processed_duration=processed,
+                )
 
             try:
                 check_cancelled(job_id)
-                result = local_transcribe(normalized_path, model_name, language)
+                result = local_transcribe(normalized_path, model_name, language, report_transcription)
             except Exception as local_error:
                 if not config.GEMINI_API_KEY:
                     raise RuntimeError(f"Local transcription failed and Gemini fallback is unavailable: {local_error}") from local_error
@@ -447,7 +483,7 @@ def run_job(
             check_cancelled(job_id)
             segments = result["segments"]
             storage.update_job(
-                job_id, progress=68, stage="diarize", duration=result.get("duration") or duration,
+                job_id, progress=68, stage="diarize", stage_detail="Preparing speaker identification…", stage_progress=0, processed_duration=result.get("duration") or duration,
                 language=result.get("language"), engine=result.get("engine"), transcript_json=segments,
             )
             if diarize:
