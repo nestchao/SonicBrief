@@ -6,6 +6,8 @@ SonicBrief is a localhost-only audio transcription and summarization workspace. 
 
 - YouTube, Bilibili, and audio-file input
 - Local `faster-whisper` transcription with timestamps
+- Whisper model choices: Turbo, Large v3, Distil-Large v3, and Small
+- Media duration limit defaults to 6 hours and can be changed with `MAX_MEDIA_HOURS` in `backend/.env`
 - RTX GPU detection with automatic CPU fallback
 - Gemini transcription fallback when the local result fails or is low quality
 - Simplified Chinese summaries through Gemini
