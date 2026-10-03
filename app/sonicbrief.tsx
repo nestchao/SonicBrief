@@ -27,6 +27,7 @@ type Job = {
   status: JobStatus; progress: number; stage: string; created_at: string; updated_at: string;
   duration?: number | null; language?: string | null; engine?: string | null;
   error?: string | null; warnings?: string[]; transcript?: TranscriptSegment[]; summary?: string | null;
+  stage_detail?: string | null; stage_progress?: number; processed_duration?: number | null;
 };
 type Health = {
   ok: boolean; cuda_available: boolean; device: string;
@@ -515,6 +516,27 @@ export function SonicBriefApp() {
             </CardHeader>
             <CardContent>
               {activeJob && ["queued", "processing"].includes(activeJob.status) ? <>
+                {activeJob.stage === "transcribe" && (
+                  <div className="sonic-whisper-detail" aria-live="polite">
+                    <div className="sonic-whisper-detail-header">
+                      <div>
+                        <p className="sonic-result-eyebrow"><AudioLines />LOCAL WHISPER</p>
+                        <strong>{activeJob.stage_detail ?? "Preparing Local Whisper…"}</strong>
+                      </div>
+                      <span>{Math.round(activeJob.stage_progress ?? 0)}%</span>
+                    </div>
+                    <Progress value={activeJob.stage_progress ?? 0} aria-label="Local Whisper progress" />
+                    <div className="sonic-whisper-meta">
+                      <span>Model: <strong>{activeJob.model_name}</strong></span>
+                      <span>Language: <strong>{activeJob.language ?? "detecting…"}</strong></span>
+                      {activeJob.processed_duration != null && activeJob.duration ? (
+                        <span>Audio processed: <strong>{formatTime(activeJob.processed_duration)} / {formatTime(activeJob.duration)}</strong></span>
+                      ) : null}
+                    </div>
+                    <p className="sonic-whisper-help">Speech is being converted to timestamped segments on your computer. Longer recordings can take a while; the percentage above tracks audio actually processed by Whisper.</p>
+                  </div>
+                )}
+
                 <div className="sonic-stage-list">{stages.map((item, index) => { const Icon = item.icon; const done = index < currentStageIndex; const active = index === currentStageIndex; return (
                   <div className={`sonic-stage ${done ? "is-done" : ""} ${active ? "is-current" : ""}`} key={item.key}>
                     <span className="sonic-stage-icon">{done ? <Check /> : <Icon />}</span><span>{item.label}</span><small>{done ? "Done" : active ? "Running" : "Waiting"}</small>
