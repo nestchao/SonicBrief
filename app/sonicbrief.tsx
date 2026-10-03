@@ -262,14 +262,14 @@ export function SonicBriefApp() {
 
     const urls = source === "upload"
       ? []
-      : [...new Set(url.split(/\\r?\\n/).map((item) => item.trim()).filter(Boolean))].slice(0, 20);
+      : [...new Set(url.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))].slice(0, 20);
 
     if (source !== "upload" && !urls.length) {
       setMessage("Paste at least one valid URL.");
       return;
     }
 
-    if (source !== "upload" && url.split(/\\r?\\n/).map((item) => item.trim()).filter(Boolean).length > 20) {
+    if (source !== "upload" && url.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).length > 20) {
       setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
     }
 
