@@ -456,7 +456,26 @@ export function SonicBriefApp() {
           </Card>
 
           <Card className="sonic-pipeline-card">
-            <CardHeader><div className="sonic-card-heading"><CardTitle>Processing pipeline</CardTitle>{activeJob && <span>{activeJob.progress}%</span>}</div></CardHeader>
+            <CardHeader>
+              <div className="sonic-card-heading">
+                <CardTitle>Processing pipeline</CardTitle>
+                {activeJob && <div className="sonic-pipeline-header-actions">
+                  <span>{activeJob.progress}%</span>
+                  {["queued", "processing"].includes(activeJob.status) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="sonic-cancel-button"
+                      onClick={() => void cancelJob()}
+                      disabled={loading}
+                      aria-label="Cancel processing"
+                    >
+                      <X />Cancel
+                    </Button>
+                  )}
+                </div>}
+              </div>
+            </CardHeader>
             <CardContent>
               {activeJob && ["queued", "processing"].includes(activeJob.status) ? <>
                 <div className="sonic-stage-list">{stages.map((item, index) => { const Icon = item.icon; const done = index < currentStageIndex; const active = index === currentStageIndex; return (
@@ -465,9 +484,6 @@ export function SonicBriefApp() {
                   </div>); })}</div>
                 <div className="sonic-progress-actions">
                   <Progress value={activeJob.progress} aria-label="Task progress" />
-                  <Button variant="destructive" size="sm" onClick={() => void cancelJob()} disabled={loading}>
-                    <X />Cancel processing
-                  </Button>
                 </div>
                 <p className="sonic-pipeline-note">Canceling during summary generation stops the result from being saved. The in-flight Gemini request may take a moment to return.</p>
               </> : activeJob?.status === "failed" ? <div className="sonic-empty-state is-error"><RotateCcw /><strong>Processing stopped</strong><p>{activeJob.error ?? "An unexpected error occurred."}</p></div>
