@@ -129,7 +129,7 @@ export function SonicBriefApp() {
     event.preventDefault(); setMessageType("error"); setMessage(null);
     if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
     if (source !== "upload" && !url.trim()) { setMessage(`Paste at least one ${source === "youtube" ? "YouTube" : "Bilibili"} link.`); return; }
-    const extractUrl = (value: string) => { const match = value.match(/https?:\\/\\/[^\\s<>]+/i); return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : ""; };
+    const extractUrl = (value: string) => { const match = value.match(/https?:\/\/[^\s<>]+/i); return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : ""; };
     const urls = source === "upload" ? [] : [...new Set(url.split(/\\r?\\n/).map(extractUrl).filter(Boolean))].slice(0, 20);
     if (source !== "upload" && !urls.length) { setMessage("Paste at least one valid URL."); return; }
     if (source !== "upload" && url.split(/\\r?\\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
