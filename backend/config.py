@@ -16,7 +16,7 @@ DATABASE_PATH = DATA_DIR / "sonicbrief.sqlite3"
 HOST = os.getenv("SONICBRIEF_HOST", "127.0.0.1")
 PORT = int(os.getenv("SONICBRIEF_PORT", "7860"))
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024 * 1024
-MAX_MEDIA_DURATION_SECONDS = int(os.getenv("MAX_MEDIA_HOURS", "3")) * 60 * 60
+MAX_MEDIA_DURATION_SECONDS = int(os.getenv("MAX_MEDIA_HOURS", "6")) * 60 * 60
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_TRANSCRIPTION_MODEL = os.getenv("GEMINI_TRANSCRIPTION_MODEL", "gemini-3.5-flash-lite").strip()
@@ -30,6 +30,7 @@ ALLOWED_MODELS = {
     "turbo": "Whisper Turbo",
     "large-v3": "Whisper Large v3",
     "distil-large-v3": "Distil-Whisper Large v3",
+    "small": "Whisper Small",
 }
 ALLOWED_EXTENSIONS = {
     ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
