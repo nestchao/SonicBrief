@@ -139,6 +139,11 @@ button, input { font: inherit; }
 .sonic-message { margin: 0 0 .75rem; padding: .7rem .8rem; border-radius: .55rem; color: #256f57; background: #ecfaf4; font-size: .78rem; line-height: 1.45; }
 
 .sonic-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.sonic-pipeline-header-actions { display: flex; align-items: center; gap: .28rem; flex-shrink: 0; }
+.sonic-pipeline-header-actions > span { color: var(--primary); font-size: .78rem; font-weight: 700; }
+.sonic-cancel-button { height: 1.9rem; padding: 0 .5rem; gap: .28rem; color: #8b91a0; font-size: .7rem; }
+.sonic-cancel-button:hover, .sonic-cancel-button:focus-visible { color: var(--destructive); background: #fff1f2; }
+.sonic-cancel-button svg { width: .75rem; height: .75rem; }
 .sonic-card-actions { display: flex; align-items: center; gap: .55rem; }
 .sonic-card-heading > span { color: var(--primary); font-size: .78rem; font-weight: 700; }
 .sonic-stage-list { position: relative; display: grid; gap: 1rem; margin: .15rem 0 1.2rem; }
@@ -152,6 +157,8 @@ button, input { font: inherit; }
 .sonic-stage.is-current .sonic-stage-icon { border-color: #c8bcff; background: #f1eeff; box-shadow: 0 0 0 4px #f6f4ff; }
 .sonic-stage.is-done { color: #288b68; }
 .sonic-stage.is-done .sonic-stage-icon { border-color: #bce4d5; background: #e9f8f2; }
+.sonic-progress-actions { width: 100%; }
+.sonic-progress-actions [data-slot="progress"] { width: 100%; }
 .sonic-pipeline-note { margin: .85rem 0 0; color: var(--muted-foreground); font-size: .7rem; line-height: 1.55; }
 .sonic-empty-state { min-height: 13.1rem; display: grid; justify-items: center; align-content: center; text-align: center; color: #8b91a0; }
 .sonic-empty-state > svg { width: 2rem; height: 2rem; margin-bottom: .8rem; color: #a89ae8; }
