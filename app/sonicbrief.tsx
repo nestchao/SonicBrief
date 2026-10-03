@@ -2,26 +2,28 @@
 
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AudioLines, Check, ChevronRight, CirclePlay, Clock3, Cloud, FileAudio, FileText,
-  History, Languages, LoaderCircle, Mic2, MonitorDot, RefreshCw,
-  Copy, RotateCcw, Sparkles, UploadCloud, Video,
+  AudioLines, Check, ChevronRight, CirclePlay, Clock3, FileAudio, FileText, FileVideo, MoreVertical,
+  Languages, LoaderCircle, Mic2, MonitorDot, RefreshCw,
+  Copy, Pencil, RotateCcw, Sparkles, Trash2, UploadCloud, Video, X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-type SourceType = "youtube" | "bilibili" | "upload";
+type InputSource = "youtube" | "bilibili" | "upload";
+type JobSource = "youtube" | "bilibili" | "upload" | "audio_upload" | "video_upload";
 type JobStatus = "queued" | "processing" | "completed" | "failed";
 type TranscriptSegment = { start: number; end: number; text: string; speaker?: string | null };
 type Job = {
-  id: string; title: string; source_type: SourceType; source_url?: string | null;
+  id: string; title: string; source_type: JobSource; source_url?: string | null;
   status: JobStatus; progress: number; stage: string; created_at: string; updated_at: string;
   duration?: number | null; language?: string | null; engine?: string | null;
   error?: string | null; warnings?: string[]; transcript?: TranscriptSegment[]; summary?: string | null;
@@ -53,10 +55,18 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-function SourceIcon({ source }: { source: SourceType }) {
+function SourceIcon({ source }: { source: JobSource }) {
   if (source === "youtube") return <CirclePlay aria-hidden="true" />;
   if (source === "bilibili") return <Video aria-hidden="true" />;
+  if (source === "video_upload") return <FileVideo aria-hidden="true" />;
   return <FileAudio aria-hidden="true" />;
+}
+
+function sourceLabel(source: JobSource) {
+  if (source === "youtube") return "YouTube";
+  if (source === "bilibili") return "Bilibili";
+  if (source === "video_upload") return "Video upload";
+  return "Audio upload";
 }
 
 function renderInlineMarkdown(text: string): ReactNode[] {
@@ -154,9 +164,9 @@ function SummaryMarkdown({ content }: { content: string }) {
 }
 
 export function SonicBriefApp() {
-  const [source, setSource] = useState<SourceType>("youtube");
+  const [source, setSource] = useState<InputSource>("youtube");
   const [url, setUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [language, setLanguage] = useState("auto");
   const [model, setModel] = useState("turbo");
   const [diarize, setDiarize] = useState(true);
@@ -165,9 +175,11 @@ export function SonicBriefApp() {
   const [health, setHealth] = useState<Health | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageType, setMessageType] = useState<"error" | "success">("error");
   const [transcriptCopied, setTranscriptCopied] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const hasPendingJobs = jobs.some((job) => ["queued", "processing"].includes(job.status));
 
   const loadHealth = useCallback(async () => {
     try {
@@ -217,6 +229,11 @@ export function SonicBriefApp() {
     }, 1200);
     return () => window.clearInterval(timer);
   }, [activeJob?.id, activeJob?.status, refreshJob]);
+  useEffect(() => {
+    if (!hasPendingJobs) return;
+    const timer = window.setInterval(() => void loadJobs(), 2000);
+    return () => window.clearInterval(timer);
+  }, [hasPendingJobs, loadJobs]);
 
   const currentStageIndex = useMemo(() => {
     const index = stages.findIndex((item) => item.key === activeJob?.stage);
@@ -227,17 +244,21 @@ export function SonicBriefApp() {
     .map((segment) => `[${formatTime(segment.start)}]${segment.speaker ? ` ${segment.speaker}:` : ""} ${segment.text}`)
     .join("\n"), [activeJob?.transcript]);
 
-  function chooseFile(nextFile?: File | null) {
-    if (!nextFile) return;
-    setFile(nextFile);
-    setMessage(null);
+  function chooseFiles(nextFiles?: FileList | File[] | null) {
+    if (!nextFiles?.length) return;
+    const combined = [...files, ...Array.from(nextFiles)];
+    const unique = combined.filter((item, index) => combined.findIndex((candidate) =>
+      candidate.name === item.name && candidate.size === item.size && candidate.lastModified === item.lastModified) === index);
+    setFiles(unique.slice(0, 20));
+    setMessage(unique.length > 20 ? "A batch can contain at most 20 files; extra files were not added." : null);
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setMessageType("error");
     setMessage(null);
-    if (source === "upload" && !file) { setMessage("Choose an audio file first."); return; }
-    if (source !== "upload" && !url.trim()) { setMessage(`Paste a ${source === "youtube" ? "YouTube" : "Bilibili"} link first.`); return; }
+    if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
+    if (source !== "upload" && !url.trim()) { setMessage(`Paste at least one ${source === "youtube" ? "YouTube" : "Bilibili"} link.`); return; }
     setLoading(true);
     try {
       const body = new FormData();
@@ -246,15 +267,23 @@ export function SonicBriefApp() {
       body.set("diarize", String(diarize));
       body.set("summary_language", "zh-CN");
       body.set("summary_style", "detailed");
-      let endpoint = `${API_BASE}/api/jobs/url`;
-      if (source === "upload") { body.set("file", file as File); endpoint = `${API_BASE}/api/jobs/upload`; }
-      else body.set("url", url.trim());
+      let endpoint = `${API_BASE}/api/jobs/batch/url`;
+      if (source === "upload") {
+        files.forEach((file) => body.append("files", file));
+        endpoint = `${API_BASE}/api/jobs/batch/upload`;
+      } else {
+        body.set("urls", url.trim());
+      }
       const response = await fetch(endpoint, { method: "POST", body });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail ?? "Unable to create this task.");
-      setActiveJob(data as Job);
-      setJobs((current) => [data as Job, ...current]);
-      if (source === "upload") setFile(null); else setUrl("");
+      const created = (data.jobs ?? []) as Job[];
+      if (!created.length) throw new Error("The batch did not create any tasks.");
+      setActiveJob(created[0]);
+      setJobs((current) => [...created, ...current.filter((job) => !created.some((item) => item.id === job.id))]);
+      setMessageType("success");
+      setMessage(`${created.length} ${created.length === 1 ? "task" : "tasks"} added to the processing queue.`);
+      if (source === "upload") { setFiles([]); if (fileInput.current) fileInput.current.value = ""; } else setUrl("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create this task."); }
     finally { setLoading(false); }
   }
@@ -273,6 +302,46 @@ export function SonicBriefApp() {
       setActiveJob(data as Job);
       setJobs((current) => current.map((job) => job.id === data.id ? data : job));
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not regenerate the summary."); }
+    finally { setLoading(false); }
+  }
+
+  async function renameJob(job: Job) {
+    const nextTitle = window.prompt("Rename task", job.title)?.trim();
+    if (!nextTitle || nextTitle === job.title) return;
+    setLoading(true);
+    setMessageType("error");
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.set("title", nextTitle);
+      const response = await fetch(`${API_BASE}/api/jobs/${job.id}/rename`, { method: "POST", body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail ?? "Could not rename this task.");
+      if (activeJob?.id === data.id) setActiveJob(data as Job);
+      setJobs((current) => current.map((job) => job.id === data.id ? data : job));
+      setMessageType("success");
+      setMessage("Task renamed.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not rename this task."); }
+    finally { setLoading(false); }
+  }
+
+  async function deleteJob(job: Job) {
+    if (!window.confirm(`Delete “${job.title}”? This cannot be undone.`)) return;
+    setLoading(true);
+    setMessageType("error");
+    setMessage(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/jobs/${job.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail ?? "Could not delete this task.");
+      }
+      const remaining = jobs.filter((item) => item.id !== job.id);
+      setJobs(remaining);
+      if (activeJob?.id === job.id) setActiveJob(remaining[0] ?? null);
+      setMessageType("success");
+      setMessage("Task deleted.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not delete this task."); }
     finally { setLoading(false); }
   }
 
@@ -301,25 +370,9 @@ export function SonicBriefApp() {
 
   return (
     <main className="sonic-shell">
-      <aside className="sonic-sidebar">
-        <div className="sonic-brand"><span className="sonic-mark"><AudioLines aria-hidden="true" /></span><span>SonicBrief</span></div>
-        <nav className="sonic-nav" aria-label="Main navigation">
-          <button className="is-active" type="button"><Sparkles aria-hidden="true" />New transcript</button>
-          <button type="button" onClick={() => document.getElementById("history")?.scrollIntoView({ behavior: "smooth" })}><History aria-hidden="true" />History</button>
-        </nav>
-        <div className="sonic-device">
-          <div className="sonic-device-title"><span className={health ? "sonic-status-dot is-online" : "sonic-status-dot"} />{health ? "Local engine ready" : "Local engine offline"}</div>
-          <p>{health ? `${health.device}${health.cuda_available ? " · CUDA" : ""}` : "Start the Python service on port 7860."}</p>
-          <div className="sonic-capabilities">
-            <span className={health?.gemini_configured ? "is-ready" : ""}><Cloud />Gemini</span>
-            <span className={health?.diarization_configured ? "is-ready" : ""}><Mic2 />Speakers</span>
-          </div>
-        </div>
-      </aside>
-
       <section className="sonic-workspace">
         <header className="sonic-header">
-          <div><p className="sonic-kicker">LOCAL AUDIO WORKSPACE</p><h1>Transcribe once. Understand faster.</h1></div>
+          <div><p className="sonic-kicker">LOCAL MEDIA WORKSPACE</p><h1>Transcribe once. Understand faster.</h1></div>
           <Badge variant="outline" className="sonic-mode"><MonitorDot />Localhost only</Badge>
         </header>
 
@@ -328,30 +381,34 @@ export function SonicBriefApp() {
             <CardHeader><CardTitle>New transcript</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={submit}>
-                <Tabs value={source} onValueChange={(value) => { setSource(value as SourceType); setMessage(null); }}>
+                <Tabs value={source} onValueChange={(value) => { setSource(value as InputSource); setMessage(null); }}>
                   <TabsList className="sonic-tabs">
                     <TabsTrigger value="youtube"><CirclePlay />YouTube</TabsTrigger>
                     <TabsTrigger value="bilibili"><Video />Bilibili</TabsTrigger>
-                    <TabsTrigger value="upload"><UploadCloud />Audio file</TabsTrigger>
+                    <TabsTrigger value="upload"><UploadCloud />Media files</TabsTrigger>
                   </TabsList>
                   <TabsContent value="youtube" className="sonic-source-panel">
                     <Label htmlFor="youtube-url">YouTube link</Label>
-                    <Input id="youtube-url" type="url" placeholder="https://www.youtube.com/watch?v=..." value={url} onChange={(event) => setUrl(event.target.value)} />
+                    <Textarea id="youtube-url" rows={4} placeholder={"Paste one YouTube link per line\nhttps://www.youtube.com/watch?v=..."} value={url} onChange={(event) => setUrl(event.target.value)} />
                   </TabsContent>
                   <TabsContent value="bilibili" className="sonic-source-panel">
                     <Label htmlFor="bilibili-url">Bilibili link</Label>
-                    <Input id="bilibili-url" type="url" placeholder="https://www.bilibili.com/video/BV..." value={url} onChange={(event) => setUrl(event.target.value)} />
+                    <Textarea id="bilibili-url" rows={4} placeholder={"Paste one Bilibili link per line\nhttps://www.bilibili.com/video/BV..."} value={url} onChange={(event) => setUrl(event.target.value)} />
                   </TabsContent>
                   <TabsContent value="upload" className="sonic-source-panel">
-                    <input ref={fileInput} className="sr-only" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus" onChange={(event) => chooseFile(event.target.files?.[0])} />
+                    <input ref={fileInput} className="sr-only" type="file" multiple accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.mp4,.mov,.mkv,.webm,.avi,.m4v,.mpeg,.mpg,.wmv" onChange={(event) => chooseFiles(event.target.files)} />
                     <button className={`sonic-drop-zone ${dragging ? "is-dragging" : ""}`} type="button"
                       onClick={() => fileInput.current?.click()}
                       onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
                       onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)}
-                      onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFile(event.dataTransfer.files?.[0]); }}>
-                      <UploadCloud aria-hidden="true" /><span>{file ? file.name : "Drop audio here or choose a file"}</span>
-                      <small>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "MP3, WAV, M4A, FLAC, AAC, OGG or OPUS"}</small>
+                      onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFiles(event.dataTransfer.files); }}>
+                      <UploadCloud aria-hidden="true" /><span>{files.length ? `Add more files (${files.length} selected)` : "Drop audio or video files here"}</span>
+                      <small>Up to 20 files · MP3, WAV, M4A, MP4, MOV, MKV, WebM and more</small>
                     </button>
+                    {files.length > 0 && <div className="sonic-file-queue" aria-label="Selected media files">{files.map((file, index) => <div key={`${file.name}-${file.lastModified}`}>
+                      <span>{file.type.startsWith("video/") ? <FileVideo /> : <FileAudio />}</span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(1)} MB</small>
+                      <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X /></button>
+                    </div>)}</div>}
                   </TabsContent>
                 </Tabs>
 
@@ -372,8 +429,8 @@ export function SonicBriefApp() {
                   <div><Label htmlFor="speaker-switch">Identify speakers</Label><p>Label Speaker 1, Speaker 2, and others.</p></div>
                   <Switch id="speaker-switch" checked={diarize} onCheckedChange={setDiarize} aria-label="Identify speakers" />
                 </div>
-                {message && <p className="sonic-error" role="alert">{message}</p>}
-                <Button className="sonic-submit" size="lg" disabled={loading || !health}>{loading ? <LoaderCircle className="animate-spin" /> : <AudioLines />}Transcribe and summarize</Button>
+                {message && <p className={messageType === "success" ? "sonic-message" : "sonic-error"} role={messageType === "success" ? "status" : "alert"}>{message}</p>}
+                <Button className="sonic-submit" size="lg" disabled={loading || !health}>{loading ? <LoaderCircle className="animate-spin" /> : <AudioLines />}{loading ? "Adding batch…" : "Transcribe and summarize"}</Button>
               </form>
             </CardContent>
           </Card>
@@ -389,7 +446,7 @@ export function SonicBriefApp() {
                 <Progress value={activeJob.progress} aria-label="Task progress" />
                 <p className="sonic-pipeline-note">Gemini is used only when local transcription quality is too low.</p>
               </> : activeJob?.status === "failed" ? <div className="sonic-empty-state is-error"><RotateCcw /><strong>Processing stopped</strong><p>{activeJob.error ?? "An unexpected error occurred."}</p></div>
-                : <div className="sonic-empty-state"><AudioLines /><strong>Ready for audio</strong><p>Your progress will appear here after you start a task.</p></div>}
+                : <div className="sonic-empty-state"><AudioLines /><strong>Ready for media</strong><p>Your progress will appear here after you start a task.</p></div>}
             </CardContent>
           </Card>
         </div>
@@ -408,10 +465,16 @@ export function SonicBriefApp() {
 
         <section className="sonic-history" id="history">
           <div className="sonic-section-heading"><div><p className="sonic-kicker">SAVED LOCALLY</p><h2>Recent transcripts</h2></div><Button variant="ghost" size="sm" onClick={() => { void loadJobs(); void loadHealth(); }}><RefreshCw />Refresh</Button></div>
-          {jobs.length ? <div className="sonic-history-list">{jobs.map((job) => <button className={activeJob?.id === job.id ? "is-selected" : ""} type="button" key={job.id} onClick={() => void refreshJob(job.id)}>
-            <span className="sonic-source-icon"><SourceIcon source={job.source_type} /></span><span className="sonic-history-main"><strong>{job.title}</strong><small>{job.source_type === "upload" ? "Audio upload" : job.source_type === "youtube" ? "YouTube" : "Bilibili"} · {formatDate(job.created_at)}</small></span>
-            <span className={`sonic-job-state is-${job.status}`}>{job.status === "processing" && <LoaderCircle className="animate-spin" />}{job.status}</span><span className="sonic-history-duration">{job.duration ? formatTime(job.duration) : "—"}</span><ChevronRight className="sonic-chevron" aria-hidden="true" />
-          </button>)}</div> : <div className="sonic-history-empty"><FileText /><div><strong>No saved transcripts yet</strong><p>Your completed work will stay on this computer.</p></div></div>}
+          {jobs.length ? <div className="sonic-history-list">{jobs.map((job) => <div className={`sonic-history-row ${activeJob?.id === job.id ? "is-selected" : ""}`} key={job.id}>
+            <button className="sonic-history-select" type="button" onClick={() => void refreshJob(job.id)}>
+              <span className="sonic-source-icon"><SourceIcon source={job.source_type} /></span><span className="sonic-history-main"><strong>{job.title}</strong><small>{sourceLabel(job.source_type)} · {formatDate(job.created_at)}</small></span>
+              <span className={`sonic-job-state is-${job.status}`}>{job.status === "processing" && <LoaderCircle className="animate-spin" />}{job.status}</span><span className="sonic-history-duration">{job.duration ? formatTime(job.duration) : "—"}</span><ChevronRight className="sonic-chevron" aria-hidden="true" />
+            </button>
+            <DropdownMenu><DropdownMenuTrigger asChild><button className="sonic-history-menu" type="button" aria-label={`Actions for ${job.title}`}><MoreVertical /></button></DropdownMenuTrigger><DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => void renameJob(job)}><Pencil />Rename</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => void deleteJob(job)}><Trash2 />Delete</DropdownMenuItem>
+            </DropdownMenuContent></DropdownMenu>
+          </div>)}</div> : <div className="sonic-history-empty"><FileText /><div><strong>No saved transcripts yet</strong><p>Your completed work will stay on this computer.</p></div></div>}
         </section>
       </section>
     </main>
