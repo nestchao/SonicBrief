@@ -22,6 +22,38 @@ _MODEL_CACHE: dict[tuple[str, str, str], WhisperModel] = {}
 _MODEL_LOCK = threading.Lock()
 _DIARIZATION_PIPELINE: Any = None
 _DIARIZATION_LOCK = threading.Lock()
+_CANCEL_EVENTS: dict[str, threading.Event] = {}
+_CANCEL_LOCK = threading.Lock()
+
+
+class JobCancelled(Exception):
+    """Raised when a user asks an active pipeline to stop."""
+
+
+def register_job(job_id: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCEL_EVENTS[job_id] = threading.Event()
+
+def request_cancel(job_id: str) -> bool:
+    with _CANCEL_LOCK:
+        event = _CANCEL_EVENTS.get(job_id)
+        if event is None:
+            return False
+        event.set()
+        return True
+
+def is_cancelled(job_id: str) -> bool:
+    with _CANCEL_LOCK:
+        event = _CANCEL_EVENTS.get(job_id)
+    return event.is_set() if event is not None else False
+
+def clear_job(job_id: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCEL_EVENTS.pop(job_id, None)
+
+def check_cancelled(job_id: str) -> None:
+    if is_cancelled(job_id):
+        raise JobCancelled("Processing was cancelled by the user.")
 
 
 def cuda_available() -> bool:
@@ -371,9 +403,11 @@ def run_job(
     summary_language: str, summary_style: str,
 ) -> None:
     try:
+        check_cancelled(job_id)
         storage.update_job(job_id, status="processing", progress=4, stage="acquire", error=None)
         with tempfile.TemporaryDirectory(prefix=f"sonicbrief-{job_id[:8]}-") as temp_dir_value:
             temp_dir = Path(temp_dir_value)
+            check_cancelled(job_id)
             if source_url:
                 media_path, metadata = download_audio(source_url, temp_dir)
                 storage.update_job(job_id, title=metadata["title"], duration=metadata.get("duration"), progress=18)
@@ -382,6 +416,7 @@ def run_job(
             else:
                 raise RuntimeError("No input media was provided.")
 
+            check_cancelled(job_id)
             duration = probe_duration(media_path)
             if duration and duration > config.MAX_MEDIA_DURATION_SECONDS:
                 raise RuntimeError(f"This audio is longer than the configured {config.MAX_MEDIA_DURATION_SECONDS // 3600}-hour limit.")
@@ -389,10 +424,12 @@ def run_job(
                 storage.update_job(job_id, duration=duration)
 
             normalized_path = temp_dir / "normalized.wav"
+            check_cancelled(job_id)
             normalize_audio(media_path, normalized_path)
             storage.update_job(job_id, progress=25, stage="transcribe")
 
             try:
+                check_cancelled(job_id)
                 result = local_transcribe(normalized_path, model_name, language)
             except Exception as local_error:
                 if not config.GEMINI_API_KEY:
@@ -407,6 +444,7 @@ def run_job(
                     else:
                         storage.add_warning(job_id, "Local transcription confidence was low; Gemini fallback is not configured.")
 
+            check_cancelled(job_id)
             segments = result["segments"]
             storage.update_job(
                 job_id, progress=68, stage="diarize", duration=result.get("duration") or duration,
@@ -414,22 +452,31 @@ def run_job(
             )
             if diarize:
                 try:
+                    check_cancelled(job_id)
                     segments = add_speakers(normalized_path, segments)
                     storage.update_job(job_id, transcript_json=segments)
                 except Exception as exc:
                     storage.add_warning(job_id, f"Speaker identification was skipped: {exc}")
 
+            check_cancelled(job_id)
             storage.update_job(job_id, progress=84, stage="summarize")
             try:
                 summary = make_summary(segments, summary_language, summary_style)
+                check_cancelled(job_id)
                 storage.save_summary(job_id, summary, summary_language, summary_style, config.GEMINI_SUMMARY_MODEL)
             except Exception as exc:
                 storage.add_warning(job_id, f"Summary was not generated: {exc}")
 
             storage.update_job(job_id, status="completed", progress=100, stage="complete")
+    except JobCancelled:
+        storage.update_job(job_id, status="cancelled", progress=84, stage="cancelled", error="Processing was cancelled by the user.")
     except Exception as exc:
-        storage.update_job(job_id, status="failed", error=str(exc), progress=100)
+        if is_cancelled(job_id):
+            storage.update_job(job_id, status="cancelled", progress=84, stage="cancelled", error="Processing was cancelled by the user.")
+        else:
+            storage.update_job(job_id, status="failed", error=str(exc), progress=100)
     finally:
+        clear_job(job_id)
         if upload_path:
             try:
                 os.remove(upload_path)

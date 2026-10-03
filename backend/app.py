@@ -46,6 +46,7 @@ def validate_options(model_name: str, language: str) -> None:
 
 
 def submit_pipeline(job_id: str, **options: object) -> None:
+    pipeline.register_job(job_id)
     EXECUTOR.submit(pipeline.run_job, job_id, **options)
 
 
@@ -164,6 +165,19 @@ async def regenerate_summary(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     storage.save_summary(job_id, summary, summary_language, summary_style, config.GEMINI_SUMMARY_MODEL)
+    return storage.get_job(job_id)
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict[str, object]:
+    try:
+        record = storage.get_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Task not found.") from exc
+    if record["status"] not in {"queued", "processing"}:
+        raise HTTPException(status_code=409, detail="This task is no longer running.")
+    pipeline.request_cancel(job_id)
+    storage.update_job(job_id, status="cancelled", stage="cancelled", progress=record.get("progress", 0), error="Processing was cancelled by the user.")
     return storage.get_job(job_id)
 
 
