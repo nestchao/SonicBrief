@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 type InputSource = "youtube" | "bilibili" | "upload";
 type JobSource = "youtube" | "bilibili" | "upload" | "audio_upload" | "video_upload";
-type JobStatus = "queued" | "processing" | "completed" | "failed";
+type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 type TranscriptSegment = { start: number; end: number; text: string; speaker?: string | null };
 type Job = {
   id: string; title: string; source_type: JobSource; source_url?: string | null;
@@ -225,7 +225,7 @@ export function SonicBriefApp() {
     if (!activeJob || !["queued", "processing"].includes(activeJob.status)) return;
     const timer = window.setInterval(async () => {
       const job = await refreshJob(activeJob.id);
-      if (job && ["completed", "failed"].includes(job.status)) window.clearInterval(timer);
+      if (job && ["completed", "failed", "cancelled"].includes(job.status)) window.clearInterval(timer);
     }, 1200);
     return () => window.clearInterval(timer);
   }, [activeJob?.id, activeJob?.status, refreshJob]);
@@ -286,6 +286,26 @@ export function SonicBriefApp() {
       if (source === "upload") { setFiles([]); if (fileInput.current) fileInput.current.value = ""; } else setUrl("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create this task."); }
     finally { setLoading(false); }
+  }
+
+  async function cancelJob() {
+    if (!activeJob || !["queued", "processing"].includes(activeJob.status)) return;
+    if (!window.confirm("Cancel this processing task? The transcript already produced will be kept, but the final summary will not be saved.")) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch(API_BASE + "/api/jobs/" + activeJob.id + "/cancel", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail ?? "Could not cancel this task.");
+      setActiveJob(data as Job);
+      setJobs((current) => current.map((job) => job.id === data.id ? data : job));
+      setMessageType("success");
+      setMessage("Processing cancelled. The transcript already produced was kept.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not cancel this task.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function regenerateSummary() {
@@ -443,9 +463,15 @@ export function SonicBriefApp() {
                   <div className={`sonic-stage ${done ? "is-done" : ""} ${active ? "is-current" : ""}`} key={item.key}>
                     <span className="sonic-stage-icon">{done ? <Check /> : <Icon />}</span><span>{item.label}</span><small>{done ? "Done" : active ? "Running" : "Waiting"}</small>
                   </div>); })}</div>
-                <Progress value={activeJob.progress} aria-label="Task progress" />
-                <p className="sonic-pipeline-note">Gemini is used only when local transcription quality is too low.</p>
+                <div className="sonic-progress-actions">
+                  <Progress value={activeJob.progress} aria-label="Task progress" />
+                  <Button variant="destructive" size="sm" onClick={() => void cancelJob()} disabled={loading}>
+                    <X />Cancel processing
+                  </Button>
+                </div>
+                <p className="sonic-pipeline-note">Canceling during summary generation stops the result from being saved. The in-flight Gemini request may take a moment to return.</p>
               </> : activeJob?.status === "failed" ? <div className="sonic-empty-state is-error"><RotateCcw /><strong>Processing stopped</strong><p>{activeJob.error ?? "An unexpected error occurred."}</p></div>
+                : activeJob?.status === "cancelled" ? <div className="sonic-empty-state"><X /><strong>Processing cancelled</strong><p>The task was stopped by you. Any transcript already produced remains saved.</p></div>
                 : <div className="sonic-empty-state"><AudioLines /><strong>Ready for media</strong><p>Your progress will appear here after you start a task.</p></div>}
             </CardContent>
           </Card>
