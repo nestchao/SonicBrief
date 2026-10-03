@@ -259,33 +259,66 @@ export function SonicBriefApp() {
     setMessage(null);
     if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
     if (source !== "upload" && !url.trim()) { setMessage(`Paste at least one ${source === "youtube" ? "YouTube" : "Bilibili"} link.`); return; }
+
+    const urls = source === "upload"
+      ? []
+      : [...new Set(url.split(/\\r?\\n/).map((item) => item.trim()).filter(Boolean))].slice(0, 20);
+
+    if (source !== "upload" && !urls.length) {
+      setMessage("Paste at least one valid URL.");
+      return;
+    }
+
+    if (source !== "upload" && url.split(/\\r?\\n/).map((item) => item.trim()).filter(Boolean).length > 20) {
+      setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
+    }
+
     setLoading(true);
     try {
-      const body = new FormData();
-      body.set("model_name", model);
-      body.set("language", language);
-      body.set("diarize", String(diarize));
-      body.set("summary_language", "zh-CN");
-      body.set("summary_style", "detailed");
-      let endpoint = `${API_BASE}/api/jobs/batch/url`;
+      const createRequest = async (file?: File, sourceUrl?: string) => {
+        const body = new FormData();
+        body.set("model_name", model);
+        body.set("language", language);
+        body.set("diarize", String(diarize));
+        body.set("summary_language", "zh-CN");
+        body.set("summary_style", "detailed");
+
+        let endpoint = `${API_BASE}/api/jobs/upload`;
+        if (file) {
+          body.set("file", file);
+        } else {
+          endpoint = `${API_BASE}/api/jobs/url`;
+          body.set("url", sourceUrl ?? "");
+        }
+
+        const response = await fetch(endpoint, { method: "POST", body });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail ?? "Unable to create this task.");
+        return data as Job;
+      };
+
+      const created: Job[] = [];
       if (source === "upload") {
-        files.forEach((file) => body.append("files", file));
-        endpoint = `${API_BASE}/api/jobs/batch/upload`;
+        for (const file of files) {
+          created.push(await createRequest(file));
+        }
       } else {
-        body.set("urls", url.trim());
+        for (const sourceUrl of urls) {
+          created.push(await createRequest(undefined, sourceUrl));
+        }
       }
-      const response = await fetch(endpoint, { method: "POST", body });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail ?? "Unable to create this task.");
-      const created = (data.jobs ?? []) as Job[];
-      if (!created.length) throw new Error("The batch did not create any tasks.");
+
+      if (!created.length) throw new Error("No tasks were created.");
       setActiveJob(created[0]);
       setJobs((current) => [...created, ...current.filter((job) => !created.some((item) => item.id === job.id))]);
       setMessageType("success");
       setMessage(`${created.length} ${created.length === 1 ? "task" : "tasks"} added to the processing queue.`);
       if (source === "upload") { setFiles([]); if (fileInput.current) fileInput.current.value = ""; } else setUrl("");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create this task."); }
-    finally { setLoading(false); }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create this task.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function cancelJob() {
