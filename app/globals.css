@@ -157,6 +157,16 @@ button, input { font: inherit; }
 .sonic-stage.is-current .sonic-stage-icon { border-color: #c8bcff; background: #f1eeff; box-shadow: 0 0 0 4px #f6f4ff; }
 .sonic-stage.is-done { color: #288b68; }
 .sonic-stage.is-done .sonic-stage-icon { border-color: #bce4d5; background: #e9f8f2; }
+.sonic-whisper-detail { margin: .1rem 0 1.15rem; padding: .9rem; border: 1px solid #e2def8; border-radius: .75rem; background: linear-gradient(180deg, #faf9ff 0%, #f7f8fc 100%); }
+.sonic-whisper-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; margin-bottom: .7rem; }
+.sonic-whisper-detail-header > div { min-width: 0; }
+.sonic-whisper-detail-header .sonic-result-eyebrow { margin: 0 0 .28rem; }
+.sonic-whisper-detail-header strong { display: block; color: #41475a; font-size: .78rem; line-height: 1.4; }
+.sonic-whisper-detail-header > span { flex-shrink: 0; color: var(--primary); font-size: .78rem; font-weight: 750; }
+.sonic-whisper-detail [data-slot="progress"] { height: .42rem; }
+.sonic-whisper-meta { display: flex; flex-wrap: wrap; gap: .45rem .8rem; margin-top: .7rem; color: #858b99; font-size: .66rem; }
+.sonic-whisper-meta strong { color: #5d6475; font-weight: 650; }
+.sonic-whisper-help { margin: .7rem 0 0; color: #7d8494; font-size: .68rem; line-height: 1.5; }
 .sonic-progress-actions { width: 100%; }
 .sonic-progress-actions [data-slot="progress"] { width: 100%; }
 .sonic-pipeline-note { margin: .85rem 0 0; color: var(--muted-foreground); font-size: .7rem; line-height: 1.55; }
