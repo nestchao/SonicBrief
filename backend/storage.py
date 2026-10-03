@@ -37,6 +37,9 @@ def initialize() -> None:
                 status TEXT NOT NULL,
                 progress INTEGER NOT NULL DEFAULT 0,
                 stage TEXT NOT NULL DEFAULT 'acquire',
+                stage_detail TEXT,
+                stage_progress INTEGER NOT NULL DEFAULT 0,
+                processed_duration REAL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 duration REAL,
@@ -64,6 +67,15 @@ def initialize() -> None:
             CREATE INDEX IF NOT EXISTS idx_summaries_job_id ON summaries(job_id, created_at DESC);
             """
         )
+        existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()}
+        migrations = [
+            ("stage_detail", "ALTER TABLE jobs ADD COLUMN stage_detail TEXT"),
+            ("stage_progress", "ALTER TABLE jobs ADD COLUMN stage_progress INTEGER NOT NULL DEFAULT 0"),
+            ("processed_duration", "ALTER TABLE jobs ADD COLUMN processed_duration REAL"),
+        ]
+        for column, statement in migrations:
+            if column not in existing_columns:
+                connection.execute(statement)
 
 
 def create_job(
@@ -85,7 +97,7 @@ def create_job(
 
 def update_job(job_id: str, **fields: Any) -> None:
     allowed = {
-        "title", "status", "progress", "stage", "duration", "language", "engine",
+        "title", "status", "progress", "stage", "stage_detail", "stage_progress", "processed_duration", "duration", "language", "engine",
         "transcript_json", "summary", "error", "warnings_json",
     }
     updates: list[str] = []
