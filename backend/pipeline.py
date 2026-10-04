@@ -17,6 +17,7 @@ import yt_dlp
 from faster_whisper import WhisperModel
 
 import config
+import gemini_settings
 import storage
 
 _MODEL_CACHE: dict[tuple[str, str, str], WhisperModel] = {}
@@ -265,14 +266,14 @@ def _clean_json_response(text: str) -> Any:
 
 
 def gemini_transcribe(path: Path, language: str) -> dict[str, Any]:
-    if not config.GEMINI_API_KEY:
+    if not gemini_settings.is_configured():
         raise RuntimeError("Gemini fallback is not configured.")
     try:
         from google import genai
     except ImportError as exc:
         raise RuntimeError("The google-genai package is not installed.") from exc
 
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    client = genai.Client(api_key=gemini_settings.get_gemini_api_key())
     uploaded = client.files.upload(file=str(path))
     prompt = f"""
 Transcribe this audio accurately. The expected language is {language if language != 'auto' else 'auto-detect, including mixed languages'}.
