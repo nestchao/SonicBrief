@@ -27,10 +27,11 @@ Requirements:
 
 Run `setup.bat` once. It creates a Python virtual environment, installs the base transcription dependencies, installs the frontend dependencies, and creates `backend/.env`.
 
-Open `backend/.env` and set:
+Double-click `start.bat`. On first launch, open **Gemini Settings** and paste your own Google AI Studio API key. SonicBrief saves the key to the local `backend/.env` file on that computer; you do not need to edit the file manually.
+
+You can also configure the Gemini model IDs in `backend/.env` if needed:
 
 ```env
-GEMINI_API_KEY=your_google_ai_studio_key
 GEMINI_TRANSCRIPTION_MODEL=gemini-3.5-flash-lite
 GEMINI_SUMMARY_MODEL=gemini-3.5-flash-lite
 ```
@@ -63,7 +64,8 @@ The API health check reports whether CTranslate2 can access CUDA. If it reports 
 ## Local data and privacy
 
 - The API binds to `127.0.0.1`, so it is not exposed to other computers.
-- API keys stay in `backend/.env` and are never sent to the frontend.
+- Each user supplies their own Gemini API key; it is saved locally in `backend/.env` and is never returned to the frontend.
+- `backend/.env` is local configuration and must never be committed to Git.
 - Temporary downloaded or uploaded audio is deleted after processing.
 - Persistent results are stored in `data/sonicbrief.sqlite3`.
 - If Gemini fallback or summaries are enabled, the relevant audio or transcript is sent to Google's API.
@@ -92,6 +94,10 @@ npm run build
 ## Main API routes
 
 - `GET /api/health`
+- `GET /api/settings/gemini`
+- `POST /api/settings/gemini` (save a local Gemini key)
+- `POST /api/settings/gemini/test` (test a key without saving it)
+- `DELETE /api/settings/gemini` (remove the saved key)
 - `GET /api/jobs`
 - `GET /api/jobs/{id}`
 - `POST /api/jobs/upload`
