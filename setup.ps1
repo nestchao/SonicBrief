@@ -20,5 +20,5 @@ if (-not (Test-Path "backend\.env")) {
 
 Write-Host ""
 Write-Host "SonicBrief setup is complete." -ForegroundColor Green
-Write-Host "Add GEMINI_API_KEY to backend\.env, then run start.bat."
+Write-Host "Start SonicBrief with start.bat, then open Gemini Settings to add your Google AI Studio API key."
 Write-Host "For speaker identification, also install backend\requirements-diarization.txt and add HF_TOKEN."
