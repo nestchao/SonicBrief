@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 import config
+import gemini_settings
 import pipeline
 import storage
 
@@ -58,10 +59,62 @@ def health() -> dict[str, object]:
         "cuda_available": gpu,
         "device": "NVIDIA GPU" if gpu else "CPU mode",
         "ffmpeg_available": pipeline.ffmpeg_available(),
-        "gemini_configured": bool(config.GEMINI_API_KEY),
+        "gemini_configured": gemini_settings.is_configured(),
         "diarization_configured": bool(config.HF_TOKEN),
         "models": config.ALLOWED_MODELS,
     }
+
+
+@app.get("/api/settings/gemini")
+def gemini_settings_status() -> dict[str, object]:
+    return {"configured": gemini_settings.is_configured()}
+
+
+@app.post("/api/settings/gemini")
+def save_gemini_settings(payload: dict[str, object]) -> dict[str, object]:
+    api_key = payload.get("api_key")
+    if not isinstance(api_key, str):
+        raise HTTPException(status_code=400, detail="API key is required.")
+    api_key = api_key.strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key is required.")
+    if len(api_key) > 512:
+        raise HTTPException(status_code=400, detail="API key is too long.")
+
+    try:
+        gemini_settings.save_gemini_api_key(api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"configured": True}
+
+
+@app.post("/api/settings/gemini/test")
+async def test_gemini_settings(payload: dict[str, object]) -> dict[str, object]:
+    api_key = payload.get("api_key")
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise HTTPException(status_code=400, detail="API key is required.")
+    api_key = api_key.strip()
+    if len(api_key) > 512:
+        raise HTTPException(status_code=400, detail="API key is too long.")
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=config.GEMINI_SUMMARY_MODEL,
+            contents="Reply with OK.",
+        )
+        if not (response.text or "").strip():
+            raise RuntimeError("Gemini returned an empty response.")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini connection failed: {exc}") from exc
+    return {"ok": True}
+
+
+@app.delete("/api/settings/gemini")
+def clear_gemini_settings() -> dict[str, object]:
+    gemini_settings.clear_gemini_api_key()
+    return {"configured": False}
 
 
 @app.get("/api/jobs")
