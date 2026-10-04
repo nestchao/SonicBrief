@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { GeminiSettings } from "@/app/gemini-settings";
 
 type InputSource = "youtube" | "bilibili" | "upload";
 type JobSource = "youtube" | "bilibili" | "upload" | "audio_upload" | "video_upload";
@@ -182,7 +183,7 @@ export function SonicBriefApp() {
 
   return (
     <main className="sonic-shell"><section className="sonic-workspace">
-      <header className="sonic-header"><div><p className="sonic-kicker">LOCAL MEDIA WORKSPACE</p><h1>Transcribe once. Understand faster.</h1></div><Badge variant="outline" className="sonic-mode"><MonitorDot />Localhost only</Badge></header>
+      <header className="sonic-header"><div><p className="sonic-kicker">LOCAL MEDIA WORKSPACE</p><h1>Transcribe once. Understand faster.</h1></div><div className="sonic-header-actions"><GeminiSettings onConfiguredChange={(configured) => setHealth((current) => current ? { ...current, gemini_configured: configured } : current)} /><Badge variant="outline" className="sonic-mode"><MonitorDot />Localhost only</Badge></div></header>
       <div className="sonic-primary-grid">
         <Card className="sonic-input-card"><CardHeader><CardTitle>New transcript</CardTitle></CardHeader><CardContent><form onSubmit={submit}>
           <Tabs value={source} onValueChange={(value) => { setSource(value as InputSource); setMessage(null); }}>
