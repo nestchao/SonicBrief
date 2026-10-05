@@ -1,33 +1,25 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
+from typing import Any
 
 import config
 
 _API_KEY_ENV = "GEMINI_API_KEY"
 _MODEL_ENV = "GEMINI_MODEL"
-_LEGACY_MODEL_ENVS = ("GEMINI_TRANSCRIPTION_MODEL", "GEMINI_SUMMARY_MODEL")
+_MODEL_ID_PATTERN = re.compile(r"^gemini-[a-z0-9][a-z0-9._-]{0,127}$", re.IGNORECASE)
+_SPECIALIZED_MODEL_MARKERS = (
+    "-tts",
+    "-image",
+    "-live",
+    "computer-use",
+    "robotics",
+    "deep-research",
+)
 
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
-GEMINI_MODEL_OPTIONS = (
-    {
-        "id": "gemini-3.8-flash",
-        "label": "Gemini 3.8 Flash",
-        "description": "Recommended · latest balanced model",
-    },
-    {
-        "id": "gemini-3.5-flash",
-        "label": "Gemini 3.5 Flash",
-        "description": "Balanced speed and quality",
-    },
-    {
-        "id": "gemini-3.5-flash-lite",
-        "label": "Gemini 3.5 Flash-Lite",
-        "description": "Fastest and lowest-cost option",
-    },
-)
-ALLOWED_GEMINI_MODELS = {item["id"] for item in GEMINI_MODEL_OPTIONS}
 
 
 def get_gemini_api_key() -> str:
@@ -35,22 +27,92 @@ def get_gemini_api_key() -> str:
     return os.getenv(_API_KEY_ENV, config.GEMINI_API_KEY).strip()
 
 
+def normalize_gemini_model_id(model: str) -> str:
+    selected = model.strip()
+    if selected.startswith("models/"):
+        selected = selected[len("models/"):]
+    if not _MODEL_ID_PATTERN.fullmatch(selected):
+        raise ValueError("Invalid Gemini model ID.")
+    return selected
+
+
 def get_gemini_model() -> str:
-    """Return one supported Gemini model for both fallback and summaries."""
+    """Return the saved Gemini model, preserving existing installations."""
     candidates = (
         os.getenv(_MODEL_ENV, "").strip(),
         os.getenv("GEMINI_SUMMARY_MODEL", "").strip(),
         os.getenv("GEMINI_TRANSCRIPTION_MODEL", "").strip(),
         getattr(config, "GEMINI_MODEL", "").strip(),
+        DEFAULT_GEMINI_MODEL,
     )
     for candidate in candidates:
-        if candidate in ALLOWED_GEMINI_MODELS:
-            return candidate
+        if not candidate:
+            continue
+        try:
+            return normalize_gemini_model_id(candidate)
+        except ValueError:
+            continue
     return DEFAULT_GEMINI_MODEL
 
 
-def list_gemini_models() -> list[dict[str, str]]:
-    return [dict(item) for item in GEMINI_MODEL_OPTIONS]
+def _is_sonicbrief_model(model_id: str, supported_actions: set[str]) -> bool:
+    if "generateContent" not in supported_actions:
+        return False
+    lowered = model_id.lower()
+    if not lowered.startswith("gemini-"):
+        return False
+    return not any(marker in lowered for marker in _SPECIALIZED_MODEL_MARKERS)
+
+
+def list_gemini_models(api_key: str | None = None) -> list[dict[str, str]]:
+    """List generation-capable Gemini models available to one Google API key."""
+    key = (api_key or get_gemini_api_key()).strip()
+    if not key:
+        raise ValueError("API key is required to load Gemini models.")
+
+    try:
+        from google import genai
+    except ImportError as exc:
+        raise RuntimeError("The google-genai package is not installed.") from exc
+
+    client = genai.Client(api_key=key)
+    options: dict[str, dict[str, str]] = {}
+
+    for item in client.models.list():
+        raw_name = str(getattr(item, "name", "") or "").strip()
+        if not raw_name:
+            continue
+
+        try:
+            model_id = normalize_gemini_model_id(raw_name)
+        except ValueError:
+            continue
+
+        actions = {
+            str(action)
+            for action in (getattr(item, "supported_actions", None) or [])
+            if action
+        }
+        if not _is_sonicbrief_model(model_id, actions):
+            continue
+
+        label = str(getattr(item, "display_name", "") or "").strip() or model_id
+        description = str(getattr(item, "description", "") or "").strip()
+        if not description:
+            description = "Available to this API key · supports generateContent"
+
+        options[model_id] = {
+            "id": model_id,
+            "label": label,
+            "description": description,
+        }
+
+    def sort_key(option: dict[str, str]) -> tuple[int, str]:
+        identifier = option["id"].lower()
+        preview_rank = 1 if "preview" in identifier or "exp" in identifier else 0
+        return (preview_rank, option["label"].lower())
+
+    return sorted(options.values(), key=sort_key)
 
 
 def is_configured() -> bool:
@@ -126,10 +188,8 @@ def save_gemini_api_key(api_key: str) -> None:
 
 
 def save_gemini_model(model: str) -> str:
-    """Persist one supported model and keep legacy per-task settings in sync."""
-    selected = model.strip()
-    if selected not in ALLOWED_GEMINI_MODELS:
-        raise ValueError("Unsupported Gemini model.")
+    """Persist a Gemini model ID and keep legacy per-task settings in sync."""
+    selected = normalize_gemini_model_id(model)
 
     values = {
         _MODEL_ENV: selected,
