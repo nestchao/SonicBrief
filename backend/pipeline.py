@@ -81,14 +81,32 @@ def get_model(model_name: str) -> tuple[WhisperModel, str, str]:
     return _MODEL_CACHE[cache_key], device, compute_type
 
 
+_SOURCE_LABELS = {
+    "youtube": "YouTube",
+    "bilibili": "Bilibili",
+    "vimeo": "Vimeo",
+    "tiktok": "TikTok",
+    "twitter": "X / Twitter",
+    "soundcloud": "SoundCloud",
+    "twitch": "Twitch",
+}
+
+
+def source_label(source_type: str) -> str:
+    return _SOURCE_LABELS.get(source_type, "Online media")
+
+
 def classify_url(url: str) -> str:
     parsed = urlparse(url.strip())
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("The link must start with http:// or https://.")
-    host = (parsed.hostname or "").lower()
-    if host not in config.ALLOWED_URL_HOSTS:
-        raise ValueError("Only YouTube and Bilibili links are supported.")
-    return "bilibili" if "bilibili" in host or host == "b23.tv" else "youtube"
+    host = (parsed.hostname or "").rstrip(".").lower()
+    for domain, source_type in config.ALLOWED_URL_SOURCES.items():
+        if host == domain or host.endswith("." + domain):
+            return source_type
+    raise ValueError(
+        "Supported media links: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch."
+    )
 
 
 def probe_duration(path: Path) -> float | None:
