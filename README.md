@@ -7,7 +7,7 @@ SonicBrief is a localhost-only audio transcription and summarization workspace. 
 - YouTube, Bilibili, and audio-file input
 - Local `faster-whisper` transcription with timestamps
 - Whisper model choices: Turbo, Large v3, Distil-Large v3, and Small
-- Media duration limit defaults to 6 hours and can be changed with `MAX_MEDIA_HOURS` in `backend/.env`
+- Media duration limit defaults to 12 hours and can be changed with `MAX_MEDIA_HOURS` in `backend/.env`
 - RTX GPU detection with automatic CPU fallback
 - Gemini transcription fallback when the local result fails or is low quality
 - Simplified Chinese summaries through Gemini
@@ -27,15 +27,21 @@ Requirements:
 
 Run `setup.bat` once. It creates a Python virtual environment, installs the base transcription dependencies, installs the frontend dependencies, and creates `backend/.env`.
 
-Open `backend/.env` and set:
+Double-click `start.bat`. On first launch, open **Gemini Settings**, paste your own Google AI Studio API key, and choose a Gemini model from the dropdown. SonicBrief saves the key and model preference to the local `backend/.env` file on that computer; you do not need to edit the file manually.
+
+The built-in model choices are:
+
+- **Gemini 3.8 Flash** — recommended default
+- **Gemini 3.5 Flash** — balanced speed and quality
+- **Gemini 3.5 Flash-Lite** — fastest and lowest-cost option
+
+You can also configure the shared model in `backend/.env` if needed:
 
 ```env
-GEMINI_API_KEY=your_google_ai_studio_key
-GEMINI_TRANSCRIPTION_MODEL=gemini-3.5-flash-lite
-GEMINI_SUMMARY_MODEL=gemini-3.5-flash-lite
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
-Use a model ID that is currently available in your Google AI Studio account. The app still performs local transcription without Gemini, but summary generation and cloud fallback require the key.
+Legacy `GEMINI_TRANSCRIPTION_MODEL` and `GEMINI_SUMMARY_MODEL` overrides remain supported for existing installs. The app still performs local transcription without Gemini, but summary generation and cloud fallback require the key.
 
 Then double-click `start.bat`. It starts the API at `http://127.0.0.1:7860`, starts the web interface at `http://127.0.0.1:3000`, and opens the interface in your browser.
 
@@ -63,7 +69,8 @@ The API health check reports whether CTranslate2 can access CUDA. If it reports 
 ## Local data and privacy
 
 - The API binds to `127.0.0.1`, so it is not exposed to other computers.
-- API keys stay in `backend/.env` and are never sent to the frontend.
+- Each user supplies their own Gemini API key; it is saved locally in `backend/.env` and is never returned to the frontend.
+- `backend/.env` is local configuration and must never be committed to Git.
 - Temporary downloaded or uploaded audio is deleted after processing.
 - Persistent results are stored in `data/sonicbrief.sqlite3`.
 - If Gemini fallback or summaries are enabled, the relevant audio or transcript is sent to Google's API.
@@ -92,6 +99,10 @@ npm run build
 ## Main API routes
 
 - `GET /api/health`
+- `GET /api/settings/gemini`
+- `POST /api/settings/gemini` (save a local Gemini key)
+- `POST /api/settings/gemini/test` (test a key without saving it)
+- `DELETE /api/settings/gemini` (remove the saved key)
 - `GET /api/jobs`
 - `GET /api/jobs/{id}`
 - `POST /api/jobs/upload`

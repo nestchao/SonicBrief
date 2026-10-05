@@ -17,6 +17,7 @@ import yt_dlp
 from faster_whisper import WhisperModel
 
 import config
+import gemini_settings
 import storage
 
 _MODEL_CACHE: dict[tuple[str, str, str], WhisperModel] = {}
@@ -265,14 +266,15 @@ def _clean_json_response(text: str) -> Any:
 
 
 def gemini_transcribe(path: Path, language: str) -> dict[str, Any]:
-    if not config.GEMINI_API_KEY:
+    if not gemini_settings.is_configured():
         raise RuntimeError("Gemini fallback is not configured.")
     try:
         from google import genai
     except ImportError as exc:
         raise RuntimeError("The google-genai package is not installed.") from exc
 
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    client = genai.Client(api_key=gemini_settings.get_gemini_api_key())
+    selected_model = gemini_settings.get_gemini_model()
     uploaded = client.files.upload(file=str(path))
     prompt = f"""
 Transcribe this audio accurately. The expected language is {language if language != 'auto' else 'auto-detect, including mixed languages'}.
@@ -285,7 +287,7 @@ Escape every double quote and backslash inside spoken text as required by JSON. 
         from google.genai import types
 
         response = client.models.generate_content(
-            model=config.GEMINI_TRANSCRIPTION_MODEL,
+            model=selected_model,
             contents=[uploaded, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -337,7 +339,7 @@ Escape every double quote and backslash inside spoken text as required by JSON. 
         "segments": segments,
         "language": str(payload.get("language", language)),
         "duration": max(item["end"] for item in segments),
-        "engine": f"gemini/{config.GEMINI_TRANSCRIPTION_MODEL}",
+        "engine": f"gemini/{selected_model}",
     }
 
 
@@ -392,8 +394,8 @@ def add_speakers(path: Path, segments: list[dict[str, Any]]) -> list[dict[str, A
 
 
 def make_summary(segments: list[dict[str, Any]], language: str, style: str) -> str:
-    if not config.GEMINI_API_KEY:
-        raise RuntimeError("Add GEMINI_API_KEY to backend/.env to create summaries.")
+    if not gemini_settings.is_configured():
+        raise RuntimeError("Add your Gemini API key in Gemini Settings to create summaries.")
     try:
         from google import genai
     except ImportError as exc:
@@ -414,8 +416,8 @@ Do not invent facts. When citing an important point, include its nearest timesta
 TRANSCRIPT:
 {transcript}
 """.strip()
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
-    response = client.models.generate_content(model=config.GEMINI_SUMMARY_MODEL, contents=prompt)
+    client = genai.Client(api_key=gemini_settings.get_gemini_api_key())
+    response = client.models.generate_content(model=gemini_settings.get_gemini_model(), contents=prompt)
     summary = (response.text or "").strip()
     if not summary:
         raise RuntimeError("Gemini returned an empty summary.")
@@ -468,13 +470,13 @@ def run_job(
                 check_cancelled(job_id)
                 result = local_transcribe(normalized_path, model_name, language, report_transcription)
             except Exception as local_error:
-                if not config.GEMINI_API_KEY:
+                if not gemini_settings.is_configured():
                     raise RuntimeError(f"Local transcription failed and Gemini fallback is unavailable: {local_error}") from local_error
                 storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
                 result = gemini_transcribe(normalized_path, language)
             else:
                 if transcript_needs_fallback(result):
-                    if config.GEMINI_API_KEY:
+                    if gemini_settings.is_configured():
                         storage.add_warning(job_id, "Local transcription quality was low, so Gemini fallback was used.")
                         result = gemini_transcribe(normalized_path, language)
                     else:
@@ -499,7 +501,7 @@ def run_job(
             try:
                 summary = make_summary(segments, summary_language, summary_style)
                 check_cancelled(job_id)
-                storage.save_summary(job_id, summary, summary_language, summary_style, config.GEMINI_SUMMARY_MODEL)
+                storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
             except Exception as exc:
                 storage.add_warning(job_id, f"Summary was not generated: {exc}")
 
