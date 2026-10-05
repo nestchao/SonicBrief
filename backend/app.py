@@ -70,8 +70,42 @@ def gemini_settings_status() -> dict[str, object]:
     return {
         "configured": gemini_settings.is_configured(),
         "model": gemini_settings.get_gemini_model(),
-        "models": gemini_settings.list_gemini_models(),
+        "models": [],
     }
+
+
+@app.post("/api/settings/gemini/models")
+async def available_gemini_models(payload: dict[str, object]) -> dict[str, object]:
+    api_key = payload.get("api_key")
+    if api_key is None:
+        key = gemini_settings.get_gemini_api_key()
+    elif isinstance(api_key, str):
+        key = api_key.strip()
+    else:
+        raise HTTPException(status_code=400, detail="API key must be a string.")
+
+    if not key:
+        raise HTTPException(status_code=400, detail="API key is required to load Gemini models.")
+    if len(key) > 512:
+        raise HTTPException(status_code=400, detail="API key is too long.")
+
+    try:
+        models = await asyncio.to_thread(gemini_settings.list_gemini_models, key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not load Gemini models: {exc}") from exc
+
+    if not models:
+        raise HTTPException(
+            status_code=502,
+            detail="Google returned no compatible Gemini models that support generateContent.",
+        )
+
+    available_ids = {str(item["id"]) for item in models}
+    current_model = gemini_settings.get_gemini_model()
+    selected_model = current_model if current_model in available_ids else str(models[0]["id"])
+    return {"model": selected_model, "models": models}
 
 
 @app.post("/api/settings/gemini")
@@ -99,7 +133,7 @@ def save_gemini_settings(payload: dict[str, object]) -> dict[str, object]:
     return {
         "configured": gemini_settings.is_configured(),
         "model": selected_model,
-        "models": gemini_settings.list_gemini_models(),
+        "models": [],
     }
 
 
@@ -119,8 +153,12 @@ async def test_gemini_settings(payload: dict[str, object]) -> dict[str, object]:
         raise HTTPException(status_code=400, detail="API key is required.")
     if len(key) > 512:
         raise HTTPException(status_code=400, detail="API key is too long.")
-    if not isinstance(model, str) or model not in gemini_settings.ALLOWED_GEMINI_MODELS:
-        raise HTTPException(status_code=400, detail="Unsupported Gemini model.")
+    if not isinstance(model, str):
+        raise HTTPException(status_code=400, detail="Gemini model is required.")
+    try:
+        model = gemini_settings.normalize_gemini_model_id(model)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
         from google import genai
@@ -143,7 +181,7 @@ def clear_gemini_settings() -> dict[str, object]:
     return {
         "configured": False,
         "model": gemini_settings.get_gemini_model(),
-        "models": gemini_settings.list_gemini_models(),
+        "models": [],
     }
 
 

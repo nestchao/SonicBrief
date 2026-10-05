@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Eye, EyeOff, KeyRound, LoaderCircle, Settings, X } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, Settings, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,44 +21,87 @@ type GeminiSettingsResponse = {
   models: GeminiModelOption[];
 };
 
+type GeminiModelsResponse = {
+  model: string;
+  models: GeminiModelOption[];
+};
+
 type Props = {
   onConfiguredChange?: (configured: boolean) => void;
 };
-
-const FALLBACK_MODELS: GeminiModelOption[] = [
-  { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash", description: "Recommended · latest balanced model" },
-  { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", description: "Balanced speed and quality" },
-  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite", description: "Fastest and lowest-cost option" },
-];
 
 export function GeminiSettings({ onConfiguredChange }: Props) {
   const [open, setOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [configured, setConfigured] = useState(false);
-  const [model, setModel] = useState("gemini-3.8-flash");
-  const [models, setModels] = useState<GeminiModelOption[]>(FALLBACK_MODELS);
+  const [model, setModel] = useState("");
+  const [models, setModels] = useState<GeminiModelOption[]>([]);
   const [showKey, setShowKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<"error" | "success">("success");
 
   const selectedModel = useMemo(
-    () => models.find((item) => item.id === model) ?? FALLBACK_MODELS.find((item) => item.id === model),
+    () => models.find((item) => item.id === model),
     [model, models],
   );
 
-  const refresh = async () => {
+  const hasKeyForDiscovery = Boolean(apiKey.trim() || configured);
+  const needsModelRefresh = Boolean(apiKey.trim()) && models.length === 0;
+
+  async function loadModels(keyOverride?: string, quiet = false) {
+    setLoadingModels(true);
+    if (!quiet) setMessage(null);
+    try {
+      const response = await fetch(API_BASE + "/api/settings/gemini/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(keyOverride?.trim() ? { api_key: keyOverride.trim() } : {}),
+      });
+      const data = await response.json().catch(() => ({})) as Partial<GeminiModelsResponse> & { detail?: string };
+      if (!response.ok) throw new Error(data.detail ?? "Could not load Gemini models.");
+      if (!Array.isArray(data.models) || data.models.length === 0) {
+        throw new Error("Google returned no compatible Gemini models.");
+      }
+
+      setModels(data.models);
+      const availableIds = new Set(data.models.map((item) => item.id));
+      setModel((current) => {
+        if (current && availableIds.has(current)) return current;
+        if (data.model && availableIds.has(data.model)) return data.model;
+        return data.models?.[0]?.id ?? "";
+      });
+
+      if (!quiet) {
+        setMessageType("success");
+        setMessage(`Loaded ${data.models.length} Gemini models available to this API key.`);
+      }
+    } catch (error) {
+      setModels([]);
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Could not load Gemini models.");
+    } finally {
+      setLoadingModels(false);
+    }
+  }
+
+  async function refresh(loadAvailableModels = false) {
     try {
       const response = await fetch(API_BASE + "/api/settings/gemini");
       if (!response.ok) return;
       const data = await response.json() as GeminiSettingsResponse;
-      setConfigured(Boolean(data.configured));
+      const isConfigured = Boolean(data.configured);
+      setConfigured(isConfigured);
       if (data.model) setModel(data.model);
-      if (Array.isArray(data.models) && data.models.length) setModels(data.models);
-      onConfiguredChange?.(Boolean(data.configured));
+      onConfiguredChange?.(isConfigured);
+
+      if (loadAvailableModels && isConfigured) {
+        await loadModels(undefined, true);
+      }
     } catch {}
-  };
+  }
 
   useEffect(() => { void refresh(); }, []);
 
@@ -67,7 +110,12 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
     setApiKey("");
     setShowKey(false);
     setOpen(true);
-    void refresh();
+    void refresh(true);
+  }
+
+  function handleModelChange(value: string) {
+    setModel(value);
+    setMessage(null);
   }
 
   async function testSettings() {
@@ -76,6 +124,12 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
       setMessage("Enter your Google AI Studio API key first.");
       return;
     }
+    if (!model || needsModelRefresh) {
+      setMessageType("error");
+      setMessage("Load the models available to this API key before testing.");
+      return;
+    }
+
     setTesting(true);
     setMessage(null);
     try {
@@ -105,6 +159,12 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
       setMessage("Enter your Google AI Studio API key first.");
       return;
     }
+    if (!model || needsModelRefresh) {
+      setMessageType("error");
+      setMessage("Load the models available to this API key before saving.");
+      return;
+    }
+
     setBusy(true);
     setMessage(null);
     try {
@@ -118,14 +178,15 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
       });
       const data = await response.json().catch(() => ({})) as Partial<GeminiSettingsResponse> & { detail?: string };
       if (!response.ok) throw new Error(data.detail ?? "Could not save Gemini settings.");
-      setConfigured(Boolean(data.configured));
+
+      const isConfigured = Boolean(data.configured);
+      setConfigured(isConfigured);
       if (data.model) setModel(data.model);
-      if (Array.isArray(data.models) && data.models.length) setModels(data.models);
-      onConfiguredChange?.(Boolean(data.configured));
+      onConfiguredChange?.(isConfigured);
       setApiKey("");
       setShowKey(false);
       setMessageType("success");
-      setMessage(`Gemini settings saved. Using ${selectedModel?.label ?? model}.`);
+      setMessage(`Gemini settings saved. Using ${selectedModel?.label ?? data.model ?? model}.`);
     } catch (error) {
       setMessageType("error");
       setMessage(error instanceof Error ? error.message : "Could not save Gemini settings.");
@@ -143,6 +204,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
       const data = await response.json().catch(() => ({})) as Partial<GeminiSettingsResponse> & { detail?: string };
       if (!response.ok) throw new Error(data.detail ?? "Could not remove the API key.");
       setConfigured(false);
+      setModels([]);
       if (data.model) setModel(data.model);
       onConfiguredChange?.(false);
       setMessageType("success");
@@ -163,20 +225,38 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
       </Button>
 
       {open && (
-        <div className="sonic-settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+        <div
+          className="sonic-settings-backdrop"
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+        >
           <section className="sonic-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="gemini-settings-title">
             <div className="sonic-settings-header">
               <div>
                 <p className="sonic-result-eyebrow"><KeyRound />GOOGLE AI STUDIO</p>
                 <h2 id="gemini-settings-title">Gemini settings</h2>
-                <p>Use your own Google AI Studio key and choose which Gemini model SonicBrief uses.</p>
+                <p>Connect your own API key and choose from the Gemini models Google makes available to that key.</p>
               </div>
               <button type="button" className="sonic-settings-close" aria-label="Close settings" onClick={() => setOpen(false)}><X /></button>
             </div>
 
             <div className="sonic-settings-body">
-              <div className="sonic-settings-field">
-                <Label htmlFor="gemini-api-key">API key</Label>
+              <div className={configured ? "sonic-settings-connection is-connected" : "sonic-settings-connection"}>
+                <span className="sonic-settings-connection-icon"><Check /></span>
+                <div>
+                  <strong>{configured ? "Google AI Studio connected" : "Google AI Studio not connected"}</strong>
+                  <small>{configured ? "Your saved key stays on this computer." : "Add an API key to enable summaries and cloud fallback."}</small>
+                </div>
+              </div>
+
+              <div className="sonic-settings-section">
+                <div className="sonic-settings-section-heading">
+                  <div>
+                    <Label htmlFor="gemini-api-key">API key</Label>
+                    <p>{configured ? "Leave this blank to keep the saved key." : "Paste a key from Google AI Studio."}</p>
+                  </div>
+                </div>
+
                 <div className="sonic-settings-key-row">
                   <input
                     id="gemini-api-key"
@@ -184,48 +264,88 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                     type={showKey ? "text" : "password"}
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder={configured ? "Leave blank to keep the saved key" : "Paste your Google AI Studio API key"}
+                    placeholder={configured ? "Saved key will be kept" : "Paste your Google AI Studio API key"}
                     value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setApiKey(nextValue);
+                      setMessage(null);
+                      if (nextValue.trim()) setModels([]);
+                    }}
                   />
                   <button type="button" className="sonic-settings-eye" aria-label={showKey ? "Hide API key" : "Show API key"} onClick={() => setShowKey((value) => !value)}>
                     {showKey ? <EyeOff /> : <Eye />}
                   </button>
                 </div>
-                <p className="sonic-settings-help">The key is saved only in <code>backend/.env</code> on this computer and is never returned to the interface.</p>
+                <p className="sonic-settings-help">Stored locally in <code>backend/.env</code>. SonicBrief never returns the saved key to the interface.</p>
               </div>
 
-              <div className="sonic-settings-field">
-                <Label htmlFor="gemini-model">Gemini model</Label>
-                <Select value={model} onValueChange={setModel} disabled={busy || testing}>
+              <div className="sonic-settings-section">
+                <div className="sonic-settings-section-heading">
+                  <div>
+                    <Label htmlFor="gemini-model">Gemini model</Label>
+                    <p>Loaded from Google for this API key and filtered to general-purpose text-response models that support <code>generateContent</code>.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="sonic-settings-refresh-models"
+                    onClick={() => void loadModels(apiKey.trim() || undefined)}
+                    disabled={!hasKeyForDiscovery || loadingModels || busy || testing}
+                  >
+                    <RefreshCw className={loadingModels ? "animate-spin" : ""} />
+                    {loadingModels ? "Loading…" : "Refresh models"}
+                  </Button>
+                </div>
+
+                <Select value={model} onValueChange={handleModelChange} disabled={busy || testing || loadingModels || models.length === 0}>
                   <SelectTrigger id="gemini-model" className="sonic-settings-model-trigger">
-                    <SelectValue placeholder="Choose a Gemini model" />
+                    <SelectValue placeholder={loadingModels ? "Loading models from Google…" : "Load models to choose"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="sonic-settings-model-menu" position="popper" align="start">
                     {models.map((item) => (
                       <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="sonic-settings-help">
-                  {selectedModel?.description ?? "Used for Gemini transcription fallback and summaries."}
-                  {" "}This selection is used for both cloud fallback transcription and summaries.
+
+                <div className="sonic-settings-model-detail">
+                  <strong>{(selectedModel?.label ?? model) || "No model loaded"}</strong>
+                  <span>
+                    {loadingModels
+                      ? "Checking the models available to this API key…"
+                      : selectedModel?.description ?? "Refresh models to get the current text-focused list directly from Google."}
+                  </span>
+                </div>
+              </div>
+
+              {message && (
+                <p
+                  className={messageType === "success" ? "sonic-message sonic-settings-message" : "sonic-error sonic-settings-message"}
+                  role={messageType === "success" ? "status" : "alert"}
+                >
+                  {message}
                 </p>
+              )}
+
+              <div className="sonic-settings-footer">
+                <div>
+                  {configured && (
+                    <Button variant="ghost" className="sonic-settings-clear" onClick={() => void clearKey()} disabled={busy || testing || loadingModels}>
+                      Remove API key
+                    </Button>
+                  )}
+                </div>
+                <div className="sonic-settings-actions">
+                  <Button variant="outline" onClick={() => void testSettings()} disabled={testing || busy || loadingModels || (!apiKey.trim() && !configured) || !model || needsModelRefresh}>
+                    {testing ? <LoaderCircle className="animate-spin" /> : <Check />} Test connection
+                  </Button>
+                  <Button onClick={() => void saveSettings()} disabled={busy || testing || loadingModels || (!apiKey.trim() && !configured) || !model || needsModelRefresh}>
+                    {busy ? <LoaderCircle className="animate-spin" /> : <KeyRound />} Save changes
+                  </Button>
+                </div>
               </div>
-
-              {configured && !apiKey && <div className="sonic-settings-status"><Check /> A Gemini API key is configured.</div>}
-              {message && <p className={messageType === "success" ? "sonic-message" : "sonic-error"} role={messageType === "success" ? "status" : "alert"}>{message}</p>}
-
-              <div className="sonic-settings-actions">
-                <Button variant="outline" onClick={() => void testSettings()} disabled={testing || busy || (!apiKey.trim() && !configured)}>
-                  {testing ? <LoaderCircle className="animate-spin" /> : <Check />} Test
-                </Button>
-                <Button onClick={() => void saveSettings()} disabled={busy || testing || (!apiKey.trim() && !configured)}>
-                  {busy ? <LoaderCircle className="animate-spin" /> : <KeyRound />} Save settings
-                </Button>
-              </div>
-
-              {configured && <Button variant="ghost" className="sonic-settings-clear" onClick={() => void clearKey()} disabled={busy || testing}>Remove saved API key</Button>}
             </div>
           </section>
         </div>

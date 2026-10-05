@@ -22,7 +22,7 @@ MAX_MEDIA_HOURS = max(12, int(os.getenv("MAX_MEDIA_HOURS", "12")))
 MAX_MEDIA_DURATION_SECONDS = MAX_MEDIA_HOURS * 60 * 60
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest").strip()
 GEMINI_TRANSCRIPTION_MODEL = os.getenv("GEMINI_TRANSCRIPTION_MODEL", GEMINI_MODEL).strip()
 GEMINI_SUMMARY_MODEL = os.getenv("GEMINI_SUMMARY_MODEL", GEMINI_MODEL).strip()
 GEMINI_FALLBACK_LOGPROB = float(os.getenv("GEMINI_FALLBACK_LOGPROB", "-1.2"))
