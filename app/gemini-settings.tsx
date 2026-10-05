@@ -284,7 +284,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                 <div className="sonic-settings-section-heading">
                   <div>
                     <Label htmlFor="gemini-model">Gemini model</Label>
-                    <p>Loaded from Google for this API key and filtered to models that support <code>generateContent</code>.</p>
+                    <p>Loaded from Google for this API key and filtered to general-purpose text-response models that support <code>generateContent</code>.</p>
                   </div>
                   <Button
                     type="button"
@@ -315,7 +315,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                   <span>
                     {loadingModels
                       ? "Checking the models available to this API key…"
-                      : selectedModel?.description ?? "Refresh models to get the current list directly from Google."}
+                      : selectedModel?.description ?? "Refresh models to get the current text-focused list directly from Google."}
                   </span>
                 </div>
               </div>
