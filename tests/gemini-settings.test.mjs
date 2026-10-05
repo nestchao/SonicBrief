@@ -36,6 +36,13 @@ test("backend discovers generation-capable Gemini models for the user's key", as
   assert.match(settings, /"native-audio"/);
   assert.match(settings, /"-tts"/);
   assert.match(settings, /"-image"/);
+  assert.match(settings, /"omni"/);
+  assert.match(settings, /"customtools"/);
+  assert.match(settings, /DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest"/);
+  assert.match(settings, /_LATEST_MODEL_ORDER/);
+  assert.match(settings, /_VERSION_PREFIX_PATTERN/);
+  assert.match(settings, /-parts\[0\]/);
+  assert.match(settings, /preview_rank/);
   assert.match(settings, /def normalize_gemini_model_id/);
   assert.match(app, /@app\.post\("\/api\/settings\/gemini\/models"\)/);
   assert.match(app, /asyncio\.to_thread\(gemini_settings\.list_gemini_models, key\)/);
