@@ -70,10 +70,10 @@ function sourceLabel(source: JobSource) {
 }
 
 function renderInlineMarkdown(text: string): ReactNode[] {
-  const tokens = text.split(/(\*\*[^*]+\*\*|__[^_]+__|\`[^\`]+\`|\*[^*]+\*|_[^_]+_|\[\d+(?:\.\d+)?s\])/g);
+  const tokens = text.split(/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*|_[^_]+_|\[\d+(?:\.\d+)?s\])/g);
   return tokens.map((token, index) => {
     if (/^\*\*[^*]+\*\*$/.test(token) || /^__[^_]+__$/.test(token)) return <strong key={token + "-" + index}>{token.slice(2, -2)}</strong>;
-    if (/^\`[^\`]+\`$/.test(token)) return <code key={token + "-" + index}>{token.slice(1, -1)}</code>;
+    if (/^`[^`]+`$/.test(token)) return <code key={token + "-" + index}>{token.slice(1, -1)}</code>;
     if (/^\*[^*]+\*$/.test(token) || /^_[^_]+_$/.test(token)) return <em key={token + "-" + index}>{token.slice(1, -1)}</em>;
     if (/^\[\d+(?:\.\d+)?s\]$/.test(token)) return <span className="sonic-timestamp-chip" key={token + "-" + index}>{token.slice(1, -1)}</span>;
     return token;
