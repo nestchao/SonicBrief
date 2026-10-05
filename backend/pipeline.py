@@ -439,7 +439,13 @@ def run_job(
             check_cancelled(job_id)
             if source_url:
                 media_path, metadata = download_audio(source_url, temp_dir)
-                storage.update_job(job_id, title=metadata["title"], duration=metadata.get("duration"), progress=18)
+                storage.update_job(
+                    job_id,
+                    title=metadata["title"],
+                    creator_name=metadata.get("creator_name"),
+                    duration=metadata.get("duration"),
+                    progress=18,
+                )
             elif upload_path:
                 media_path = Path(upload_path)
             else:
