@@ -124,3 +124,18 @@ test("media URL extraction accepts copied share text and strips closing punctuat
   assert.match(source, /value\.match\(\/https\?:\\\/\\\/\[\^\\s<>\]\+\/i\)/);
   assert.ok(source.includes('replace(/[，。！？、）】》)\\]}>"\'”’]+$/u, "")'));
 });
+
+
+test("Bilibili downloads retry interrupted transfers and report clean errors", async () => {
+  const pipeline = await readFile(path.join(root, "backend", "pipeline.py"), "utf8");
+
+  assert.match(pipeline, /"continuedl": True/);
+  assert.match(pipeline, /"retries": 10/);
+  assert.match(pipeline, /"fragment_retries": 10/);
+  assert.match(pipeline, /"extractor_retries": 3/);
+  assert.match(pipeline, /source_type == "bilibili"/);
+  assert.match(pipeline, /"http_chunk_size".*5 \* 1024 \* 1024/);
+  assert.match(pipeline, /for attempt in range\(2\)/);
+  assert.match(pipeline, /Media download was interrupted before the source finished sending the file/);
+  assert.match(pipeline, /_ANSI_ESCAPE_PATTERN/);
+});
