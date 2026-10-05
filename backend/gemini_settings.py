@@ -12,6 +12,11 @@ _SPECIALIZED_MODEL_MARKERS = (
     "-tts",
     "-image",
     "-live",
+    "-transcribe",
+    "transcribe",
+    "embedding",
+    "native-audio",
+    "audio-dialog",
     "computer-use",
     "robotics",
     "deep-research",
@@ -63,7 +68,7 @@ def _is_sonicbrief_model(model_id: str, supported_actions: set[str]) -> bool:
 
 
 def list_gemini_models(api_key: str | None = None) -> list[dict[str, str]]:
-    """List generation-capable Gemini models available to one Google API key."""
+    """List text-focused Gemini models available to one Google API key."""
     key = (api_key or get_gemini_api_key()).strip()
     if not key:
         raise ValueError("API key is required to load Gemini models.")
