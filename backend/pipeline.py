@@ -409,9 +409,11 @@ def make_summary(segments: list[dict[str, Any]], language: str, style: str) -> s
 You are summarizing a timestamped transcript for personal study.
 Write the summary in {'Simplified Chinese' if language == 'zh-CN' else language}.
 Style: {style}. Target length: 1,000–1,500 Chinese characters when the content is long enough.
+Return clean Markdown only. Do not use Markdown code fences.
+Use ## headings for major sections, blank lines between blocks, numbered or bullet lists where they improve readability, and **bold** for important terms.
 Use these sections when relevant: 核心概述、主要观点、重要细节、结论与行动项.
 Preserve technical English terms in parentheses after their Chinese term.
-Do not invent facts. When citing an important point, include its nearest timestamp.
+Do not invent facts. When citing an important point, include its nearest timestamp in the form [123.4s].
 
 TRANSCRIPT:
 {transcript}
