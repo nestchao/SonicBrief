@@ -108,6 +108,14 @@ Build once:
 docker build -t sonicbrief-mcp:local .
 ```
 
+Verify the image and automatic backend startup:
+
+```powershell
+docker run --rm -v sonicbrief-data:/data sonicbrief-mcp:local --self-test
+```
+
+A healthy result reports `"ok": true` and `"ffmpeg_available": true`. This self-test starts the backend automatically, checks it, then exits.
+
 Then configure the MCP host to launch Docker:
 
 ```text
@@ -132,7 +140,7 @@ The included `compose.yaml` provides the same persistent setup for users who pre
 
 ```powershell
 docker compose build
-docker compose run --rm sonicbrief-mcp
+docker compose run --rm -T sonicbrief-mcp --self-test
 ```
 
 No Gemini key is required when the connected AI agent will summarize the transcript. To enable SonicBrief's optional Gemini features in Docker, pass `GEMINI_API_KEY` into the container through your MCP host/environment instead of baking it into the image.
