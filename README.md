@@ -16,6 +16,8 @@ SonicBrief is a localhost-only audio transcription and summarization workspace. 
 - Dedicated Summary, Transcript, and Details workspace views
 - Full-transcript search and one-click copy
 - Markdown-formatted summaries with headings, bold text, lists, quotes, and timestamp chips
+- Summary presets: Brief, Standard, Detailed, Study Notes, Key Points, and Custom
+- Optional per-summary custom instructions, with Standard remembered as the default preset
 - TXT, SRT, and JSON export endpoints
 - Temporary media deletion after each task
 
