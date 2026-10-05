@@ -1,0 +1,19 @@
+services:
+  sonicbrief-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sonicbrief-mcp:local
+    stdin_open: true
+    environment:
+      SONICBRIEF_AUTO_START_BACKEND: "1"
+      SONICBRIEF_DATA_DIR: /data
+      HF_HOME: /data/huggingface
+      XDG_CACHE_HOME: /data/cache
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-lite-latest}
+    volumes:
+      - sonicbrief-data:/data
+
+volumes:
+  sonicbrief-data:
