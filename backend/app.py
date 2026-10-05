@@ -203,7 +203,7 @@ async def create_upload_job(
     file: UploadFile = File(...),
     model_name: str = Form("turbo"),
     language: str = Form("auto"),
-    diarize: bool = Form(True),
+    diarize: bool = Form(False),
     summary_language: str = Form("zh-CN"),
     summary_style: str = Form("detailed"),
 ) -> dict[str, object]:
@@ -246,7 +246,7 @@ def create_url_job(
     url: str = Form(...),
     model_name: str = Form("turbo"),
     language: str = Form("auto"),
-    diarize: bool = Form(True),
+    diarize: bool = Form(False),
     summary_language: str = Form("zh-CN"),
     summary_style: str = Form("detailed"),
 ) -> dict[str, object]:
@@ -255,7 +255,7 @@ def create_url_job(
         source_type = pipeline.classify_url(url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    label = "YouTube video" if source_type == "youtube" else "Bilibili video"
+    label = f"{pipeline.source_label(source_type)} media"
     record = storage.create_job(
         title=label, source_type=source_type, source_url=url.strip(),
         model_name=model_name, diarization_enabled=diarize,
