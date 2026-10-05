@@ -1,6 +1,6 @@
 # SonicBrief
 
-SonicBrief is a localhost-only audio transcription and summarization workspace. It accepts public media links from YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch, plus local audio/video files. It transcribes with `faster-whisper` first, can fall back to Gemini when local quality is poor, adds optional speaker labels, and saves transcripts and summaries in SQLite.
+SonicBrief is a localhost-only media-to-transcript workspace and MCP server. It accepts public media links from YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch, plus local audio/video files. Local `faster-whisper` transcription is the core service; Gemini fallback and built-in summaries are optional. Transcripts, optional summaries, and job history are stored in SQLite.
 
 ## What is included
 
@@ -9,8 +9,8 @@ SonicBrief is a localhost-only audio transcription and summarization workspace. 
 - Whisper model choices: Turbo, Large v3, Distil-Large v3, and Small
 - Media duration limit defaults to 12 hours and can be changed with `MAX_MEDIA_HOURS` in `backend/.env`
 - RTX GPU detection with automatic CPU fallback
-- Gemini transcription fallback when the local result fails or is low quality
-- Simplified Chinese summaries through Gemini
+- Optional Gemini transcription fallback when explicitly requested
+- Optional Gemini summaries; MCP agents can instead summarize the transcript with their own model
 - Optional speaker diarization through `pyannote.audio`
 - Local SQLite history with title/creator search and downloaded-media creator metadata
 - Dedicated Summary, Transcript, and Details workspace views
@@ -81,50 +81,99 @@ The API health check reports whether CTranslate2 can access CUDA. If it reports 
 
 ## MCP server for AI agents
 
-SonicBrief includes a local MCP server at `sonicbrief_mcp.py`. It is a lightweight bridge to the same FastAPI backend used by the browser interface:
+SonicBrief's MCP mode is **STT-first**. The default agent workflow is:
 
 ```text
 AI agent
-  -> MCP over stdio
-  -> SonicBrief API at 127.0.0.1:7860
+  -> SonicBrief MCP over stdio
+  -> auto-started local FastAPI backend
   -> yt-dlp / FFmpeg / local faster-whisper
-  -> SQLite history
-  -> Gemini only when summary generation or configured fallback needs it
+  -> timestamped transcript
+  -> agent summarizes with its own model
 ```
 
-Whisper does **not** run inside the MCP process. The local FastAPI backend owns the processing queue, GPU/CPU Whisper execution, downloads, and persistent history. This prevents the GUI and an AI agent from starting separate Whisper workers.
+MCP URL/file submissions default to **local Whisper only**: `allow_gemini_fallback=false` and `generate_gemini_summary=false`. This means a normal MCP transcription does not need a Gemini key. The agent can page through `get_transcript` and summarize the transcript itself.
 
-Run `setup.bat` after pulling the MCP feature so the virtual environment installs the MCP SDK. Then start the SonicBrief backend with `start.bat`, or run the backend by itself:
+If the user wants SonicBrief's built-in Gemini summary, configure a Gemini API key and explicitly call `generate_summary_with_gemini`, or submit a job with `generate_gemini_summary=true`. Cloud transcription fallback is also opt-in.
+
+Whisper does **not** run inside the MCP process. The MCP bridge starts/reuses one local FastAPI backend, and that backend owns the processing queue, Whisper CPU/GPU work, yt-dlp/FFmpeg, and SQLite history. If the GUI/backend is already running, MCP reuses it. If it is not running, MCP starts it automatically and shuts down the backend process it owns when the MCP session ends.
+
+### Recommended MCP installation: Docker
+
+For headless agent use, Docker avoids installing Python, FFmpeg, yt-dlp, or the Python packages manually.
+
+Build once:
 
 ```powershell
-Set-Location backend
-..\.venv\Scripts\python.exe app.py
+docker build -t sonicbrief-mcp:local .
 ```
 
-Configure an MCP host to launch the server with the same local virtual environment. The exact settings screen differs by host, but the launch values are:
+Then configure the MCP host to launch Docker:
+
+```text
+command: docker
+args:
+  run
+  --rm
+  -i
+  -v
+  sonicbrief-data:/data
+  sonicbrief-mcp:local
+```
+
+The `sonicbrief-data` volume persists:
+- SQLite job/transcript history
+- downloaded Whisper/Hugging Face model cache
+- application cache
+
+The FastAPI backend stays inside the same container and is not published to the host network. The first transcription for a Whisper model may take longer while its model files are downloaded; later container runs reuse the model from the Docker volume.
+
+The included `compose.yaml` provides the same persistent setup for users who prefer Compose:
+
+```powershell
+docker compose build
+docker compose run --rm sonicbrief-mcp
+```
+
+No Gemini key is required when the connected AI agent will summarize the transcript. To enable SonicBrief's optional Gemini features in Docker, pass `GEMINI_API_KEY` into the container through your MCP host/environment instead of baking it into the image.
+
+For local files, the container must be able to see the file. Mount a read-only media folder, for example:
+
+```text
+-v C:\Users\you\Videos:/media:ro
+```
+
+and give `submit_local_file` a container path such as `/media/lecture.mp4`.
+
+The current Dockerfile is the portable CPU-safe image. Native SonicBrief can still use an NVIDIA GPU when CUDA is configured. A dedicated NVIDIA container image should be validated separately before treating Docker GPU acceleration as a supported zero-setup path.
+
+### Native MCP installation
+
+Docker is optional. If SonicBrief is already installed natively, configure the MCP host with:
 
 ```text
 command: C:\path\to\SonicBrief\.venv\Scripts\python.exe
 args:    C:\path\to\SonicBrief\sonicbrief_mcp.py
 ```
 
-The server uses stdio by default and calls only a loopback SonicBrief API. Set `SONICBRIEF_API_BASE` only when the backend uses a different local port; non-loopback addresses are rejected.
+You do **not** need to run `start.bat` first. The MCP process checks `127.0.0.1:7860` and starts `backend/app.py` automatically when needed. Set `SONICBRIEF_AUTO_START_BACKEND=0` only if you intentionally want to manage the backend yourself.
 
 Available MCP tools include:
-
 - `get_health`
-- `submit_media_url` and `submit_media_urls` (up to 20 URLs, queued in submission order)
+- `submit_media_url` and `submit_media_urls`
 - `submit_local_file`
 - `get_job`, `list_jobs`, and `search_jobs`
-- `get_summary`
 - `get_transcript` with offset/limit pagination
-- `regenerate_summary` with all SonicBrief summary presets and custom instructions
+- `get_summary` for an already stored built-in summary
+- `generate_summary_with_gemini` for explicit Gemini summarization
 - `cancel_job`
 - `delete_job`
 
-Long-running transcription remains job-based: submit first, then use `get_job` until the job is complete before retrieving the summary/transcript. The MCP server does not hold one tool call open for the full duration of a long video.
+Long-running transcription remains job-based: submit first, check `get_job`, then retrieve transcript pages when the job completes. The MCP call does not remain open for the entire video.
 
-Local media submitted through MCP is read by the local MCP process and passed to the local SonicBrief API. If Gemini fallback or summaries are configured, the same privacy behavior as the GUI applies: relevant audio/transcript data may be sent to Google's API.
+### Privacy model
+
+Local Whisper keeps STT audio processing on the computer/container. If the connected AI agent summarizes the transcript using a cloud model, the transcript may be sent to that model provider. If Gemini fallback or `generate_summary_with_gemini` is explicitly used, the relevant audio/transcript is sent to Google's API.
 
 ## Development commands
 
