@@ -141,7 +141,7 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
         "title": info.get("title") or "Online video",
         "duration": info.get("duration"),
         "webpage_url": info.get("webpage_url") or url,
-        "uploader": info.get("uploader"),
+        "creator_name": info.get("channel") or info.get("uploader") or info.get("uploader_id"),
     }
     duration = float(metadata["duration"] or 0)
     if duration > config.MAX_MEDIA_DURATION_SECONDS:
