@@ -260,7 +260,10 @@ export function SonicBriefApp() {
     if (!validateSummarySelection()) return;
     if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
     if (source === "url" && !url.trim()) { setMessage("Paste at least one supported media link."); return; }
-    const extractUrl = (value: string) => { const match = value.match(/https?:\/\/[^\s<>]+/i); return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : ""; };
+    const extractUrl = (value: string) => {
+      const match = value.match(/https?:\/\/[^\s<>]+/i);
+      return match ? match[0].replace(/[，。！？、）】》)\]}>"'”’]+$/u, "") : "";
+    };
     const urls = source === "upload" ? [] : [...new Set(url.split(/\r?\n/).map(extractUrl).filter(Boolean))].slice(0, 20);
     if (source === "url" && !urls.length) { setMessage("Paste at least one valid media URL."); return; }
     if (source === "url" && url.split(/\r?\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
