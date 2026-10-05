@@ -1838,3 +1838,15 @@ button, input { font: inherit; }
 .sonic-speaker-option.is-unavailable [data-slot="switch"] {
   cursor: not-allowed;
 }
+
+
+.sonic-source-tabs [data-slot="tabs-trigger"] {
+  flex: 1 1 0;
+}
+
+.sonic-source-help {
+  margin: .5rem 0 0;
+  color: #8a91a1;
+  font-size: .65rem;
+  line-height: 1.5;
+}
