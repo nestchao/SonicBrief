@@ -1821,3 +1821,20 @@ button, input { font: inherit; }
     flex-direction: column-reverse;
   }
 }
+
+
+.sonic-speaker-option.is-unavailable {
+  opacity: .72;
+}
+
+.sonic-speaker-option.is-unavailable label {
+  color: #6f7687;
+}
+
+.sonic-speaker-option.is-unavailable p {
+  color: #9298a6;
+}
+
+.sonic-speaker-option.is-unavailable [data-slot="switch"] {
+  cursor: not-allowed;
+}
