@@ -31,6 +31,11 @@ test("backend discovers generation-capable Gemini models for the user's key", as
   assert.match(settings, /client\.models\.list\(\)/);
   assert.match(settings, /supported_actions/);
   assert.match(settings, /"generateContent"/);
+  assert.match(settings, /"-transcribe"/);
+  assert.match(settings, /"embedding"/);
+  assert.match(settings, /"native-audio"/);
+  assert.match(settings, /"-tts"/);
+  assert.match(settings, /"-image"/);
   assert.match(settings, /def normalize_gemini_model_id/);
   assert.match(app, /@app\.post\("\/api\/settings\/gemini\/models"\)/);
   assert.match(app, /asyncio\.to_thread\(gemini_settings\.list_gemini_models, key\)/);
