@@ -111,6 +111,10 @@ test("summary presets and custom instructions are wired end to end", async () =>
 
   assert.match(app, /summary_style: str = Form\("standard"\)/);
   assert.match(app, /summary_custom_instructions: str = Form\(""\)/);
+  assert.match(app, /generate_summary: bool = Form\(False\)/);
+  assert.match(app, /allow_gemini_fallback: bool = Form\(False\)/);
+  assert.ok(source.includes('body.set("generate_summary", "true")'));
+  assert.ok(source.includes('body.set("allow_gemini_fallback", "true")'));
   assert.match(app, /validate_summary_options/);
   assert.match(pipeline, /Custom summary style requires custom instructions/);
   assert.match(pipeline, /Custom summary instructions must be 4,000 characters or fewer/);
@@ -162,14 +166,43 @@ test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", 
     "search_jobs",
     "get_summary",
     "get_transcript",
-    "regenerate_summary",
+    "generate_summary_with_gemini",
     "cancel_job",
     "delete_job",
   ]) {
     assert.ok(mcpServer.includes("def " + tool + "("));
   }
 
+  assert.match(mcpServer, /SONICBRIEF_AUTO_START_BACKEND/);
+  assert.match(mcpServer, /subprocess\.Popen/);
+  assert.match(mcpServer, /def _ensure_backend\(\)/);
+  assert.match(mcpServer, /generate_gemini_summary: bool = False/);
+  assert.match(mcpServer, /allow_gemini_fallback: bool = False/);
+  assert.match(mcpServer, /default_mcp_mode": "local transcript only"/);
   assert.match(mcpServer, /mcp\.run\(\)/);
   assert.match(requirements, /mcp>=2,<3/);
   assert.match(requirements, /httpx>=0\.28,<1/);
+});
+
+
+test("Docker MCP image keeps secrets out and persists STT data and model cache", async () => {
+  const dockerfile = await readFile(path.join(root, "Dockerfile"), "utf8");
+  const dockerignore = await readFile(path.join(root, ".dockerignore"), "utf8");
+  const compose = await readFile(path.join(root, "compose.yaml"), "utf8");
+
+  assert.match(dockerfile, /FROM python:3\.11-slim-bookworm/);
+  assert.match(dockerfile, /ffmpeg/);
+  assert.match(dockerfile, /libgomp1/);
+  assert.match(dockerfile, /SONICBRIEF_DATA_DIR=\/data/);
+  assert.match(dockerfile, /HF_HOME=\/data\/huggingface/);
+  assert.match(dockerfile, /VOLUME \["\/data"\]/);
+  assert.match(dockerfile, /ENTRYPOINT \["python", "\/app\/sonicbrief_mcp\.py"\]/);
+
+  assert.match(dockerignore, /backend\/\.env/);
+  assert.match(dockerignore, /^data$/m);
+  assert.match(dockerignore, /^\.venv$/m);
+
+  assert.match(compose, /sonicbrief-data:\/data/);
+  assert.match(compose, /GEMINI_API_KEY/);
+  assert.doesNotMatch(compose, /ports:/);
 });
