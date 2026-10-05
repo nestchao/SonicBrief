@@ -20,9 +20,19 @@ _SPECIALIZED_MODEL_MARKERS = (
     "computer-use",
     "robotics",
     "deep-research",
+    "omni",
+    "customtools",
+    "custom-tools",
 )
 
-DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_GEMINI_MODEL = "gemini-flash-lite-latest"
+
+_LATEST_MODEL_ORDER = {
+    "gemini-flash-lite-latest": 0,
+    "gemini-flash-latest": 1,
+    "gemini-pro-latest": 2,
+}
+_VERSION_PREFIX_PATTERN = re.compile(r"^gemini-(\d+(?:\.\d+)*)", re.IGNORECASE)
 
 
 def get_gemini_api_key() -> str:
@@ -112,10 +122,37 @@ def list_gemini_models(api_key: str | None = None) -> list[dict[str, str]]:
             "description": description,
         }
 
-    def sort_key(option: dict[str, str]) -> tuple[int, str]:
+    def sort_key(option: dict[str, str]) -> tuple[int, int, int, int, int, int, str]:
         identifier = option["id"].lower()
+
+        if identifier in _LATEST_MODEL_ORDER:
+            return (
+                0,
+                _LATEST_MODEL_ORDER[identifier],
+                0,
+                0,
+                0,
+                0,
+                option["label"].lower(),
+            )
+
+        version_match = _VERSION_PREFIX_PATTERN.match(identifier)
+        if version_match:
+            parts = [int(part) for part in version_match.group(1).split(".")[:4]]
+            parts.extend([0] * (4 - len(parts)))
+            preview_rank = 1 if "preview" in identifier or "exp" in identifier else 0
+            return (
+                1,
+                -parts[0],
+                -parts[1],
+                -parts[2],
+                -parts[3],
+                preview_rank,
+                option["label"].lower(),
+            )
+
         preview_rank = 1 if "preview" in identifier or "exp" in identifier else 0
-        return (preview_rank, option["label"].lower())
+        return (2, 0, 0, 0, 0, preview_rank, option["label"].lower())
 
     return sorted(options.values(), key=sort_key)
 
