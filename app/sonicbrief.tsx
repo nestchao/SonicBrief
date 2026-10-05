@@ -4,7 +4,7 @@ import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef
 import {
   AudioLines, Check, ChevronRight, CirclePlay, Clock3, FileAudio, FileText, FileVideo, MoreVertical,
   Languages, LoaderCircle, Mic2, MonitorDot, RefreshCw,
-  Copy, Pencil, RotateCcw, Sparkles, Trash2, UploadCloud, Video, X,
+  Copy, History, Pencil, RotateCcw, Search, Settings, Sparkles, Trash2, UploadCloud, Video, X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,7 @@ type JobSource = "youtube" | "bilibili" | "upload" | "audio_upload" | "video_upl
 type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 type TranscriptSegment = { start: number; end: number; text: string; speaker?: string | null };
 type Job = {
-  id: string; title: string; source_type: JobSource; source_url?: string | null;
+  id: string; title: string; source_type: JobSource; source_url?: string | null; creator_name?: string | null;
   status: JobStatus; progress: number; stage: string; created_at: string; updated_at: string;
   duration?: number | null; language?: string | null; engine?: string | null;
   error?: string | null; warnings?: string[]; transcript?: TranscriptSegment[]; summary?: string | null;
@@ -72,35 +72,88 @@ function sourceLabel(source: JobSource) {
 }
 
 function renderInlineMarkdown(text: string): ReactNode[] {
-  const tokens = text.split(/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*|_[^_]+_)/g);
+  const tokens = text.split(/(\*\*[^*]+\*\*|__[^_]+__|\`[^\`]+\`|\*[^*]+\*|_[^_]+_|\[\d+(?:\.\d+)?s\])/g);
   return tokens.map((token, index) => {
-    if (/^\*\*[^*]+\*\*$/.test(token) || /^__[^_]+__$/.test(token)) return <strong key={`${token}-${index}`}>{token.slice(2, -2)}</strong>;
-    if (/^`[^`]+`$/.test(token)) return <code key={`${token}-${index}`}>{token.slice(1, -1)}</code>;
-    if (/^\*[^*]+\*$/.test(token) || /^_[^_]+_$/.test(token)) return <em key={`${token}-${index}`}>{token.slice(1, -1)}</em>;
+    if (/^\*\*[^*]+\*\*$/.test(token) || /^__[^_]+__$/.test(token)) return <strong key={token + "-" + index}>{token.slice(2, -2)}</strong>;
+    if (/^\`[^\`]+\`$/.test(token)) return <code key={token + "-" + index}>{token.slice(1, -1)}</code>;
+    if (/^\*[^*]+\*$/.test(token) || /^_[^_]+_$/.test(token)) return <em key={token + "-" + index}>{token.slice(1, -1)}</em>;
+    if (/^\[\d+(?:\.\d+)?s\]$/.test(token)) return <span className="sonic-timestamp-chip" key={token + "-" + index}>{token.slice(1, -1)}</span>;
     return token;
   });
 }
 
-function joinMarkdownLines(lines: string[]) { return lines.join(" ").replace(/([\\u3400-\\u9fff])\\s+([\\u3400-\\u9fff])/g, "$1$2"); }
-function isMarkdownBlockStart(line: string) {
-  return /^\\s*(#{1,6})\\s+/.test(line) || /^\\s*(?:[-*_]\\s*){3,}$/.test(line) || /^\\s*[-*+]\\s+/.test(line) || /^\\s*\\d+[.)]\\s+/.test(line) || /^\\s*>\\s?/.test(line);
+function joinMarkdownLines(lines: string[]) {
+  return lines.join(" ").replace(/([\u3400-\u9fff])\s+([\u3400-\u9fff])/g, "$1$2");
 }
+
+function isMarkdownBlockStart(line: string) {
+  return /^\s*(#{1,6})\s+/.test(line)
+    || /^\s*(?:[-*_]\s*){3,}$/.test(line)
+    || /^\s*[-*+]\s+/.test(line)
+    || /^\s*\d+[.)]\s+/.test(line)
+    || /^\s*>\s?/.test(line);
+}
+
 function SummaryMarkdown({ content }: { content: string }) {
-  const lines = content.replace(/\\r\\n?/g, "\\n").trim().split("\\n");
+  const lines = content.replace(/\r\n?/g, "\n").trim().split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
+
   while (index < lines.length) {
     const line = lines[index].trim();
     if (!line) { index += 1; continue; }
-    const heading = line.match(/^(#{1,6})\\s+(.+)$/);
-    if (heading) { const level = Math.min(heading[1].length, 4); const Heading = level <= 2 ? "h3" : "h4"; blocks.push(<Heading className={`sonic-summary-heading is-level-${level}`} key={`heading-${index}`}>{renderInlineMarkdown(heading[2])}</Heading>); index += 1; continue; }
-    if (/^(?:[-*_]\\s*){3,}$/.test(line)) { blocks.push(<hr key={`rule-${index}`} />); index += 1; continue; }
-    const unordered = line.match(/^[-*+]\\s+(.+)$/); const ordered = line.match(/^\\d+[.)]\\s+(.+)$/);
-    if (unordered || ordered) { const items: string[] = []; const orderedList = Boolean(ordered); while (index < lines.length) { const current = lines[index].trim(); const match = orderedList ? current.match(/^\\d+[.)]\\s+(.+)$/) : current.match(/^[-*+]\\s+(.+)$/); if (!match) break; items.push(match[1]); index += 1; } const List = orderedList ? "ol" : "ul"; blocks.push(<List key={`list-${index}`}>{items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>)}</List>); continue; }
-    if (/^>\\s?/.test(line)) { const quoteLines: string[] = []; while (index < lines.length && /^>\\s?/.test(lines[index].trim())) { quoteLines.push(lines[index].trim().replace(/^>\\s?/, "")); index += 1; } blocks.push(<blockquote key={`quote-${index}`}>{renderInlineMarkdown(joinMarkdownLines(quoteLines))}</blockquote>); continue; }
-    const paragraphLines = [line]; index += 1; while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines[index].trim())) paragraphLines.push(lines[index++].trim());
-    blocks.push(<p key={`paragraph-${index}`}>{renderInlineMarkdown(joinMarkdownLines(paragraphLines))}</p>);
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = Math.min(heading[1].length, 4);
+      const Heading = level <= 2 ? "h3" : "h4";
+      blocks.push(<Heading className={"sonic-summary-heading is-level-" + level} key={"heading-" + index}>{renderInlineMarkdown(heading[2])}</Heading>);
+      index += 1;
+      continue;
+    }
+
+    if (/^(?:[-*_]\s*){3,}$/.test(line)) {
+      blocks.push(<hr key={"rule-" + index} />);
+      index += 1;
+      continue;
+    }
+
+    const unordered = line.match(/^[-*+]\s+(.+)$/);
+    const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (unordered || ordered) {
+      const items: string[] = [];
+      const orderedList = Boolean(ordered);
+      while (index < lines.length) {
+        const current = lines[index].trim();
+        const match = orderedList ? current.match(/^\d+[.)]\s+(.+)$/) : current.match(/^[-*+]\s+(.+)$/);
+        if (!match) break;
+        items.push(match[1]);
+        index += 1;
+      }
+      const List = orderedList ? "ol" : "ul";
+      blocks.push(<List key={"list-" + index}>{items.map((item, itemIndex) => <li key={item + "-" + itemIndex}>{renderInlineMarkdown(item)}</li>)}</List>);
+      continue;
+    }
+
+    if (/^>\s?/.test(line)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push(<blockquote key={"quote-" + index}>{renderInlineMarkdown(joinMarkdownLines(quoteLines))}</blockquote>);
+      continue;
+    }
+
+    const paragraphLines = [line];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines[index].trim())) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push(<p key={"paragraph-" + index}>{renderInlineMarkdown(joinMarkdownLines(paragraphLines))}</p>);
   }
+
   return <div className="sonic-summary-content">{blocks}</div>;
 }
 
@@ -108,6 +161,13 @@ export function SonicBriefApp() {
   const [source, setSource] = useState<InputSource>("youtube");
   const [url, setUrl] = useState(""); const [files, setFiles] = useState<File[]>([]); const [language, setLanguage] = useState("auto"); const [model, setModel] = useState("turbo"); const [diarize, setDiarize] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]); const [activeJob, setActiveJob] = useState<Job | null>(null); const [health, setHealth] = useState<Health | null>(null); const [loading, setLoading] = useState(false); const [message, setMessage] = useState<string | null>(null); const [messageType, setMessageType] = useState<"error" | "success">("error"); const [transcriptCopied, setTranscriptCopied] = useState(false); const [dragging, setDragging] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [creatorFilter, setCreatorFilter] = useState("");
+  const [transcriptQuery, setTranscriptQuery] = useState("");
+  const [resultTab, setResultTab] = useState<"summary" | "transcript" | "details">("summary");
+  const [showPipelineDetails, setShowPipelineDetails] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const hasPendingJobs = jobs.some((job) => ["queued", "processing"].includes(job.status));
   const loadHealth = useCallback(async () => { try { const response = await fetch(`${API_BASE}/api/health`); if (!response.ok) throw new Error("Backend unavailable"); setHealth(await response.json()); } catch { setHealth(null); } }, []);
@@ -118,6 +178,25 @@ export function SonicBriefApp() {
   useEffect(() => { if (activeJob?.status === "completed" && activeJob.transcript === undefined) void refreshJob(activeJob.id); }, [activeJob?.id, activeJob?.status, activeJob?.transcript, refreshJob]);
   useEffect(() => { if (!activeJob || !["queued", "processing"].includes(activeJob.status)) return; const timer = window.setInterval(async () => { const job = await refreshJob(activeJob.id); if (job && ["completed", "failed", "cancelled"].includes(job.status)) window.clearInterval(timer); }, 1200); return () => window.clearInterval(timer); }, [activeJob?.id, activeJob?.status, refreshJob]);
   useEffect(() => { if (!hasPendingJobs) return; const timer = window.setInterval(() => void loadJobs(), 2000); return () => window.clearInterval(timer); }, [hasPendingJobs, loadJobs]);
+  useEffect(() => { setResultTab("summary"); setTranscriptQuery(""); setShowPipelineDetails(false); }, [activeJob?.id]);
+
+  const creators = useMemo(() => [...new Set(jobs.map((job) => job.creator_name?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)), [jobs]);
+  const filteredHistory = useMemo(() => {
+    const query = historyQuery.trim().toLowerCase();
+    return jobs.filter((job) => {
+      const creator = job.creator_name?.trim() ?? "";
+      const matchesCreator = !creatorFilter || creator === creatorFilter;
+      const haystack = [job.title, creator, sourceLabel(job.source_type), formatDate(job.created_at)].join(" ").toLowerCase();
+      return matchesCreator && (!query || haystack.includes(query));
+    });
+  }, [jobs, historyQuery, creatorFilter]);
+  const filteredTranscript = useMemo(() => {
+    const query = transcriptQuery.trim().toLowerCase();
+    const segments = activeJob?.transcript ?? [];
+    if (!query) return segments;
+    return segments.filter((segment) => [segment.text, segment.speaker ?? "", formatTime(segment.start)].join(" ").toLowerCase().includes(query));
+  }, [activeJob?.transcript, transcriptQuery]);
+  const recentJobs = jobs.slice(0, 4);
 
   const currentStageIndex = useMemo(() => { const index = stages.findIndex((item) => item.key === activeJob?.stage); return index < 0 ? 0 : index; }, [activeJob?.stage]);
   const timestampedTranscript = useMemo(() => (activeJob?.transcript ?? []).map((segment) => `[${formatTime(segment.start)}]${segment.speaker ? ` ${segment.speaker}:` : ""} ${segment.text}`).join("\\n"), [activeJob?.transcript]);
@@ -144,7 +223,7 @@ export function SonicBriefApp() {
       const created: Job[] = [];
       if (source === "upload") for (const file of files) created.push(await createRequest(file)); else for (const sourceUrl of urls) created.push(await createRequest(undefined, sourceUrl));
       if (!created.length) throw new Error("No tasks were created.");
-      setActiveJob(created[0]); setJobs((current) => [...created, ...current.filter((job) => !created.some((item) => item.id === job.id))]); setMessageType("success"); setMessage(`${created.length} ${created.length === 1 ? "task" : "tasks"} added to the processing queue.`);
+      setActiveJob(created[0]); setJobs((current) => [...created, ...current.filter((job) => !created.some((item) => item.id === job.id))]); setMessageType("success"); setMessage(`${created.length} ${created.length === 1 ? "task" : "tasks"} added to the processing queue.`); setNewTaskOpen(false); setResultTab("summary");
       if (source === "upload") { setFiles([]); if (fileInput.current) fileInput.current.value = ""; } else setUrl("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create this task."); } finally { setLoading(false); }
   }
@@ -181,46 +260,277 @@ export function SonicBriefApp() {
     catch { setMessage("Could not copy the transcript. Check your browser clipboard permissions."); }
   }
 
+  async function openJob(job: Job) {
+    setHistoryOpen(false);
+    setResultTab("summary");
+    await refreshJob(job.id);
+  }
+
   return (
-    <main className="sonic-shell"><section className="sonic-workspace">
-      <header className="sonic-header"><div><p className="sonic-kicker">LOCAL MEDIA WORKSPACE</p><h1>Transcribe once. Understand faster.</h1></div><div className="sonic-header-actions"><GeminiSettings onConfiguredChange={(configured) => setHealth((current) => current ? { ...current, gemini_configured: configured } : current)} /><Badge variant="outline" className="sonic-mode"><MonitorDot />Localhost only</Badge></div></header>
-      <div className="sonic-primary-grid">
-        <Card className="sonic-input-card"><CardHeader><CardTitle>New transcript</CardTitle></CardHeader><CardContent><form onSubmit={submit}>
-          <Tabs value={source} onValueChange={(value) => { setSource(value as InputSource); setMessage(null); }}>
-            <TabsList className="sonic-tabs"><TabsTrigger value="youtube"><CirclePlay />YouTube</TabsTrigger><TabsTrigger value="bilibili"><Video />Bilibili</TabsTrigger><TabsTrigger value="upload"><UploadCloud />Media files</TabsTrigger></TabsList>
-            <TabsContent value="youtube" className="sonic-source-panel"><Label htmlFor="youtube-url">YouTube link</Label><Textarea id="youtube-url" rows={4} placeholder={"Paste one YouTube link per line\\nhttps://www.youtube.com/watch?v=..."} value={url} onChange={(event) => setUrl(event.target.value)} /></TabsContent>
-            <TabsContent value="bilibili" className="sonic-source-panel"><Label htmlFor="bilibili-url">Bilibili link</Label><Textarea id="bilibili-url" rows={4} placeholder={"Paste one Bilibili link per line\\nhttps://www.bilibili.com/video/BV..."} value={url} onChange={(event) => setUrl(event.target.value)} /></TabsContent>
-            <TabsContent value="upload" className="sonic-source-panel">
-              <input ref={fileInput} className="sr-only" type="file" multiple accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.mp4,.mov,.mkv,.webm,.avi,.m4v,.mpeg,.mpg,.wmv" onChange={(event) => chooseFiles(event.target.files)} />
-              <button className={`sonic-drop-zone ${dragging ? "is-dragging" : ""}`} type="button" onClick={() => fileInput.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFiles(event.dataTransfer.files); }}>
-                <UploadCloud aria-hidden="true" /><span>{files.length ? `Add more files (${files.length} selected)` : "Drop audio or video files here"}</span><small>Up to 20 files · MP3, WAV, M4A, MP4, MOV, MKV, WebM and more</small>
+    <main className="sonic-app-shell">
+      <aside className="sonic-sidebar">
+        <div className="sonic-sidebar-brand">
+          <div className="sonic-brand-mark">S</div>
+          <div><strong>SonicBrief</strong><span>Audio workspace</span></div>
+        </div>
+
+        <Button className="sonic-new-task-button" onClick={() => { setMessage(null); setNewTaskOpen(true); }}>
+          <AudioLines />New transcription
+        </Button>
+
+        <section className="sonic-sidebar-section">
+          <p className="sonic-sidebar-label">RECENT</p>
+          <div className="sonic-recent-list">
+            {recentJobs.map((job) => (
+              <button
+                key={job.id}
+                type="button"
+                className={"sonic-recent-job " + (activeJob?.id === job.id ? "is-active" : "")}
+                onClick={() => void openJob(job)}
+              >
+                <span className="sonic-recent-icon"><SourceIcon source={job.source_type} /></span>
+                <span className="sonic-recent-copy">
+                  <strong>{job.title}</strong>
+                  <small>{job.creator_name || sourceLabel(job.source_type)} · {job.status}</small>
+                </span>
               </button>
-              {files.length > 0 && <div className="sonic-file-queue" aria-label="Selected media files">{files.map((file, index) => <div key={`${file.name}-${file.lastModified}`}><span>{file.type.startsWith("video/") ? <FileVideo /> : <FileAudio />}</span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(1)} MB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X /></button></div>)}</div>}
-            </TabsContent>
-          </Tabs>
-          <div className="sonic-config-grid">
-            <div><Label htmlFor="whisper-model">Whisper model</Label><Select value={model} onValueChange={setModel}><SelectTrigger id="whisper-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="turbo">Turbo · recommended</SelectItem><SelectItem value="large-v3">Large v3 · best accuracy</SelectItem><SelectItem value="distil-large-v3">Distil large v3 · English</SelectItem><SelectItem value="small">Small · faster</SelectItem></SelectContent></Select></div>
-            <div><Label htmlFor="language">Transcript language</Label><Select value={language} onValueChange={setLanguage}><SelectTrigger id="language" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem><SelectItem value="zh">Chinese</SelectItem><SelectItem value="ms">Malay</SelectItem><SelectItem value="ja">Japanese</SelectItem><SelectItem value="ko">Korean</SelectItem><SelectItem value="id">Indonesian</SelectItem></SelectContent></Select></div>
+            ))}
           </div>
-          <div className="sonic-speaker-option"><div><Label htmlFor="speaker-switch">Identify speakers</Label><p>Label Speaker 1, Speaker 2, and others.</p></div><Switch id="speaker-switch" checked={diarize} onCheckedChange={setDiarize} aria-label="Identify speakers" /></div>
-          {message && <p className={messageType === "success" ? "sonic-message" : "sonic-error"} role={messageType === "success" ? "status" : "alert"}>{message}</p>}
-          <Button className="sonic-submit" size="lg" disabled={loading || !health}>{loading ? <LoaderCircle className="animate-spin" /> : <AudioLines />}{loading ? "Adding batch…" : "Transcribe and summarize"}</Button>
-        </form></CardContent></Card>
-        <Card className="sonic-pipeline-card"><CardHeader><div className="sonic-card-heading"><CardTitle>Processing pipeline</CardTitle>{activeJob && <div className="sonic-pipeline-header-actions"><span>{activeJob.progress}%</span>{["queued", "processing"].includes(activeJob.status) && <Button variant="ghost" size="sm" className="sonic-cancel-button" onClick={() => void cancelJob()} disabled={loading} aria-label="Cancel processing"><X />Cancel</Button>}</div>}</div></CardHeader>
-          <CardContent>{activeJob && ["queued", "processing"].includes(activeJob.status) ? <>
-            {activeJob.stage === "transcribe" && <div className="sonic-whisper-detail" aria-live="polite"><div className="sonic-whisper-detail-header"><div><p className="sonic-result-eyebrow"><AudioLines />LOCAL WHISPER</p><strong>{activeJob.stage_detail ?? "Preparing Local Whisper…"}</strong></div><span>{Math.round(activeJob.stage_progress ?? 0)}%</span></div><Progress value={activeJob.stage_progress ?? 0} aria-label="Local Whisper progress" /><div className="sonic-whisper-meta"><span>Model: <strong>{activeJob.model_name}</strong></span><span>Language: <strong>{activeJob.language ?? "detecting…"}</strong></span>{activeJob.processed_duration != null && activeJob.duration ? <span>Audio processed: <strong>{formatTime(activeJob.processed_duration)} / {formatTime(activeJob.duration)}</strong></span> : null}</div><p className="sonic-whisper-help">Speech is being converted to timestamped segments on your computer. Longer recordings can take a while; the percentage above tracks audio actually processed by Whisper.</p></div>}
-            <div className="sonic-stage-list">{stages.map((item, index) => { const Icon = item.icon; const done = index < currentStageIndex; const active = index === currentStageIndex; return <div className={`sonic-stage ${done ? "is-done" : ""} ${active ? "is-current" : ""}`} key={item.key}><span className="sonic-stage-icon">{done ? <Check /> : <Icon />}</span><span>{item.label}</span><small>{done ? "Done" : active ? "Running" : "Waiting"}</small></div>; })}</div>
-            <div className="sonic-progress-actions"><Progress value={activeJob.progress} aria-label="Task progress" /></div><p className="sonic-pipeline-note">Canceling during summary generation stops the result from being saved. The in-flight Gemini request may take a moment to return.</p>
-          </> : activeJob?.status === "failed" ? <div className="sonic-empty-state is-error"><RotateCcw /><strong>Processing stopped</strong><p>{activeJob.error ?? "An unexpected error occurred."}</p></div> : activeJob?.status === "cancelled" ? <div className="sonic-empty-state"><X /><strong>Processing cancelled</strong><p>The task was stopped by you. Any transcript already produced remains saved.</p></div> : <div className="sonic-empty-state"><AudioLines /><strong>Ready for media</strong><p>Your progress will appear here after you start a task.</p></div>}</CardContent>
-        </Card>
-      </div>
-      {activeJob?.status === "completed" && <>{(activeJob.warnings?.length ?? 0) > 0 && <div className="sonic-warning" role="status">{activeJob.warnings?.map((warning) => <p key={warning}>{warning}</p>)}</div>}<section className="sonic-result-grid" aria-label="Transcript result">
-        <Card className="sonic-result-card"><CardHeader><div className="sonic-card-heading"><div><p className="sonic-result-eyebrow"><Languages />简体中文</p><CardTitle>Summary</CardTitle></div><Button variant="outline" size="sm" onClick={regenerateSummary} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Regenerate</Button></div></CardHeader><CardContent><div className="sonic-summary-copy">{activeJob.summary ? <SummaryMarkdown content={activeJob.summary} /> : <p>No summary was generated. Add a Gemini API key, then regenerate.</p>}</div></CardContent></Card>
-        <Card className="sonic-result-card"><CardHeader><div className="sonic-card-heading"><div><p className="sonic-result-eyebrow"><Clock3 />{formatTime(activeJob.duration ?? 0)}</p><CardTitle>Timestamped transcript</CardTitle></div><div className="sonic-card-actions"><Button variant="outline" size="sm" onClick={copyTranscript} disabled={!timestampedTranscript}>{transcriptCopied ? <Check /> : <Copy />}{transcriptCopied ? "Copied" : "Copy transcript"}</Button><Badge variant="secondary">{activeJob.engine ?? "local"}</Badge></div></div></CardHeader><CardContent><div className="sonic-transcript">{(activeJob.transcript ?? []).map((segment, index) => <article key={`${segment.start}-${index}`}><time>{formatTime(segment.start)}</time><div>{segment.speaker && <strong>{segment.speaker}</strong>}<p>{segment.text}</p></div></article>)}</div></CardContent></Card>
-      </section></>}
-      <section className="sonic-history" id="history"><div className="sonic-section-heading"><div><p className="sonic-kicker">SAVED LOCALLY</p><h2>Recent transcripts</h2></div><Button variant="ghost" size="sm" onClick={() => { void loadJobs(); void loadHealth(); }}><RefreshCw />Refresh</Button></div>
-        {jobs.length ? <div className="sonic-history-list">{jobs.map((job) => <div className={`sonic-history-row ${activeJob?.id === job.id ? "is-selected" : ""}`} key={job.id}><button className="sonic-history-select" type="button" onClick={() => void refreshJob(job.id)}><span className="sonic-source-icon"><SourceIcon source={job.source_type} /></span><span className="sonic-history-main"><strong>{job.title}</strong><small>{sourceLabel(job.source_type)} · {formatDate(job.created_at)}</small></span><span className={`sonic-job-state is-${job.status}`}>{job.status === "processing" && <LoaderCircle className="animate-spin" />}{job.status}</span><span className="sonic-history-duration">{job.duration ? formatTime(job.duration) : "—"}</span><ChevronRight className="sonic-chevron" aria-hidden="true" /></button><DropdownMenu><DropdownMenuTrigger asChild><button className="sonic-history-menu" type="button" aria-label={`Actions for ${job.title}`}><MoreVertical /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => void renameJob(job)}><Pencil />Rename</DropdownMenuItem><DropdownMenuItem variant="destructive" onSelect={() => void deleteJob(job)}><Trash2 />Delete</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>)}</div> : <div className="sonic-history-empty"><FileText /><div><strong>No saved transcripts yet</strong><p>Your completed work will stay on this computer.</p></div></div>}
+          <button type="button" className="sonic-view-history" onClick={() => setHistoryOpen(true)}>
+            <History />View all history
+          </button>
+        </section>
+
+        <div className="sonic-sidebar-bottom">
+          <GeminiSettings onConfiguredChange={(configured) => setHealth((current) => current ? { ...current, gemini_configured: configured } : current)} />
+          <div className="sonic-local-status"><MonitorDot /><span>{health ? "Local API connected" : "Backend offline"}</span></div>
+        </div>
+      </aside>
+
+      <section className="sonic-main-workspace">
+        {message && <div className={messageType === "success" ? "sonic-global-message is-success" : "sonic-global-message is-error"} role={messageType === "success" ? "status" : "alert"}>{message}</div>}
+
+        {!activeJob ? (
+          <div className="sonic-workspace-empty">
+            <AudioLines />
+            <h1>Start your first transcription</h1>
+            <p>Add a YouTube or Bilibili link, or upload local media. SonicBrief will keep the transcript, summary, and history together.</p>
+            <Button size="lg" onClick={() => setNewTaskOpen(true)}>New transcription</Button>
+          </div>
+        ) : (
+          <>
+            <header className="sonic-job-header">
+              <div className="sonic-job-heading">
+                <p className="sonic-result-eyebrow">{activeJob.status === "completed" ? "COMPLETED TRANSCRIPTION" : "SONICBRIEF JOB"}</p>
+                <h1>{activeJob.title}</h1>
+                <div className="sonic-job-meta">
+                  <span>{sourceLabel(activeJob.source_type)}</span>
+                  {activeJob.creator_name && <span>Creator: {activeJob.creator_name}</span>}
+                  {activeJob.duration != null && <span>{formatTime(activeJob.duration)}</span>}
+                  {activeJob.language && <span>{activeJob.language}</span>}
+                  {activeJob.engine && <span>{activeJob.engine}</span>}
+                </div>
+              </div>
+
+              <div className="sonic-job-header-actions">
+                {activeJob.status === "completed" && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={regenerateSummary} disabled={loading}>
+                      <RefreshCw className={loading ? "animate-spin" : ""} />Regenerate
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => window.open(API_BASE + "/api/jobs/" + activeJob.id + "/export/txt", "_blank")}>
+                      <FileText />Export TXT
+                    </Button>
+                  </>
+                )}
+              </div>
+            </header>
+
+            {["queued", "processing"].includes(activeJob.status) ? (
+              <section className="sonic-processing-card">
+                <div className="sonic-processing-topline">
+                  <div>
+                    <p className="sonic-result-eyebrow"><LoaderCircle className="animate-spin" />PROCESSING</p>
+                    <strong>{activeJob.stage_detail || stages[currentStageIndex]?.label || "Working…"}</strong>
+                  </div>
+                  <span>{activeJob.progress}%</span>
+                </div>
+                <Progress value={activeJob.progress} aria-label="Task progress" />
+                <div className="sonic-processing-actions">
+                  <button type="button" onClick={() => setShowPipelineDetails((value) => !value)}>{showPipelineDetails ? "Hide processing details" : "Show processing details"}</button>
+                  <Button variant="ghost" size="sm" onClick={() => void cancelJob()} disabled={loading}><X />Cancel</Button>
+                </div>
+                {showPipelineDetails && (
+                  <div className="sonic-processing-details">
+                    <div className="sonic-stage-list">
+                      {stages.map((item, index) => {
+                        const Icon = item.icon;
+                        const done = index < currentStageIndex;
+                        const active = index === currentStageIndex;
+                        return <div className={"sonic-stage " + (done ? "is-done " : "") + (active ? "is-current" : "")} key={item.key}><span className="sonic-stage-icon">{done ? <Check /> : <Icon />}</span><span>{item.label}</span><small>{done ? "Done" : active ? "Running" : "Waiting"}</small></div>;
+                      })}
+                    </div>
+                    {activeJob.stage === "transcribe" && (
+                      <div className="sonic-processing-meta">
+                        <span>Whisper model <strong>{activeJob.model_name}</strong></span>
+                        <span>Language <strong>{activeJob.language || "detecting…"}</strong></span>
+                        {activeJob.processed_duration != null && activeJob.duration ? <span>Audio <strong>{formatTime(activeJob.processed_duration)} / {formatTime(activeJob.duration)}</strong></span> : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            ) : activeJob.status === "completed" ? (
+              <>
+                {(activeJob.warnings?.length ?? 0) > 0 && <div className="sonic-warning" role="status">{activeJob.warnings?.map((warning) => <p key={warning}>{warning}</p>)}</div>}
+
+                <section className="sonic-result-workspace">
+                  <div className="sonic-result-tabs" role="tablist" aria-label="Job result views">
+                    <button type="button" className={resultTab === "summary" ? "is-active" : ""} onClick={() => setResultTab("summary")}>Summary</button>
+                    <button type="button" className={resultTab === "transcript" ? "is-active" : ""} onClick={() => setResultTab("transcript")}>Transcript</button>
+                    <button type="button" className={resultTab === "details" ? "is-active" : ""} onClick={() => setResultTab("details")}>Details</button>
+                  </div>
+
+                  {resultTab === "summary" && (
+                    <div className="sonic-document-view">
+                      <article className="sonic-summary-document">
+                        <div className="sonic-summary-document-head">
+                          <div><p className="sonic-result-eyebrow"><Languages />简体中文</p><h2>Summary</h2></div>
+                          <Button variant="outline" size="sm" onClick={regenerateSummary} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Regenerate</Button>
+                        </div>
+                        <div className="sonic-summary-copy">
+                          {activeJob.summary ? <SummaryMarkdown content={activeJob.summary} /> : <p>No summary was generated. Add a Gemini API key, then regenerate.</p>}
+                        </div>
+                      </article>
+                    </div>
+                  )}
+
+                  {resultTab === "transcript" && (
+                    <div className="sonic-transcript-view">
+                      <div className="sonic-transcript-toolbar">
+                        <div>
+                          <h2>Transcript</h2>
+                          <p>{(activeJob.transcript ?? []).length} timestamped segments</p>
+                        </div>
+                        <div className="sonic-transcript-tools">
+                          <label className="sonic-search-field"><Search /><input value={transcriptQuery} onChange={(event) => setTranscriptQuery(event.target.value)} placeholder="Search transcript…" /></label>
+                          <Button variant="outline" size="sm" onClick={copyTranscript} disabled={!timestampedTranscript}>{transcriptCopied ? <Check /> : <Copy />}{transcriptCopied ? "Copied" : "Copy entire transcript"}</Button>
+                        </div>
+                      </div>
+                      <div className="sonic-transcript">
+                        {filteredTranscript.length ? filteredTranscript.map((segment, index) => (
+                          <article key={segment.start + "-" + index}>
+                            <time>{formatTime(segment.start)}</time>
+                            <div>{segment.speaker && <strong>{segment.speaker}</strong>}<p>{segment.text}</p></div>
+                          </article>
+                        )) : <div className="sonic-no-results">No transcript segments match your search.</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {resultTab === "details" && (
+                    <div className="sonic-details-view">
+                      <div className="sonic-details-grid">
+                        <div><span>Source</span><strong>{sourceLabel(activeJob.source_type)}</strong></div>
+                        <div><span>Creator / YouTuber</span><strong>{activeJob.creator_name || "Not available"}</strong></div>
+                        <div><span>Duration</span><strong>{activeJob.duration ? formatTime(activeJob.duration) : "—"}</strong></div>
+                        <div><span>Transcript language</span><strong>{activeJob.language || "—"}</strong></div>
+                        <div><span>Whisper model</span><strong>{activeJob.model_name || "—"}</strong></div>
+                        <div><span>Processing engine</span><strong>{activeJob.engine || "—"}</strong></div>
+                        <div><span>Speaker detection</span><strong>{activeJob.diarization_enabled ? "Enabled" : "Disabled"}</strong></div>
+                        <div><span>Created</span><strong>{formatDate(activeJob.created_at)}</strong></div>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              </>
+            ) : (
+              <section className="sonic-processing-card is-error-state">
+                <RotateCcw />
+                <div><strong>{activeJob.status === "cancelled" ? "Processing cancelled" : "Processing stopped"}</strong><p>{activeJob.error || "This job did not complete."}</p></div>
+              </section>
+            )}
+          </>
+        )}
       </section>
-    </section></main>
+
+      {newTaskOpen && (
+        <div className="sonic-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewTaskOpen(false); }}>
+          <section className="sonic-new-task-dialog" role="dialog" aria-modal="true" aria-labelledby="new-task-title">
+            <header className="sonic-dialog-header">
+              <div><h2 id="new-task-title">New transcription</h2><p>Choose the source first. Advanced processing options can stay on their defaults.</p></div>
+              <button type="button" onClick={() => setNewTaskOpen(false)} aria-label="Close new transcription"><X /></button>
+            </header>
+            <form className="sonic-new-task-form" onSubmit={submit}>
+              <Tabs value={source} onValueChange={(value) => { setSource(value as InputSource); setMessage(null); }}>
+                <TabsList className="sonic-tabs"><TabsTrigger value="youtube"><CirclePlay />YouTube</TabsTrigger><TabsTrigger value="bilibili"><Video />Bilibili</TabsTrigger><TabsTrigger value="upload"><UploadCloud />Media files</TabsTrigger></TabsList>
+                <TabsContent value="youtube" className="sonic-source-panel"><Label htmlFor="youtube-url">YouTube link</Label><Textarea id="youtube-url" rows={4} placeholder={"Paste one YouTube link per line\nhttps://www.youtube.com/watch?v=..."} value={url} onChange={(event) => setUrl(event.target.value)} /></TabsContent>
+                <TabsContent value="bilibili" className="sonic-source-panel"><Label htmlFor="bilibili-url">Bilibili link</Label><Textarea id="bilibili-url" rows={4} placeholder={"Paste one Bilibili link per line\nhttps://www.bilibili.com/video/BV..."} value={url} onChange={(event) => setUrl(event.target.value)} /></TabsContent>
+                <TabsContent value="upload" className="sonic-source-panel">
+                  <input ref={fileInput} className="sr-only" type="file" multiple accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.mp4,.mov,.mkv,.webm,.avi,.m4v,.mpeg,.mpg,.wmv" onChange={(event) => chooseFiles(event.target.files)} />
+                  <button className={"sonic-drop-zone " + (dragging ? "is-dragging" : "")} type="button" onClick={() => fileInput.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFiles(event.dataTransfer.files); }}>
+                    <UploadCloud /><span>{files.length ? "Add more files (" + files.length + " selected)" : "Drop audio or video files here"}</span><small>Up to 20 files · common audio and video formats</small>
+                  </button>
+                  {files.length > 0 && <div className="sonic-file-queue">{files.map((file, index) => <div key={file.name + "-" + file.lastModified}><span>{file.type.startsWith("video/") ? <FileVideo /> : <FileAudio />}</span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(1)} MB</small><button type="button" onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X /></button></div>)}</div>}
+                </TabsContent>
+              </Tabs>
+
+              <details className="sonic-advanced-options">
+                <summary>Advanced options</summary>
+                <div className="sonic-config-grid">
+                  <div><Label htmlFor="whisper-model">Whisper model</Label><Select value={model} onValueChange={setModel}><SelectTrigger id="whisper-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="turbo">Turbo · recommended</SelectItem><SelectItem value="large-v3">Large v3 · best accuracy</SelectItem><SelectItem value="distil-large-v3">Distil large v3 · English</SelectItem><SelectItem value="small">Small · faster</SelectItem></SelectContent></Select></div>
+                  <div><Label htmlFor="language">Transcript language</Label><Select value={language} onValueChange={setLanguage}><SelectTrigger id="language" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem><SelectItem value="zh">Chinese</SelectItem><SelectItem value="ms">Malay</SelectItem><SelectItem value="ja">Japanese</SelectItem><SelectItem value="ko">Korean</SelectItem><SelectItem value="id">Indonesian</SelectItem></SelectContent></Select></div>
+                </div>
+                <div className="sonic-speaker-option"><div><Label htmlFor="speaker-switch">Identify speakers</Label><p>Label Speaker 1, Speaker 2, and others.</p></div><Switch id="speaker-switch" checked={diarize} onCheckedChange={setDiarize} /></div>
+              </details>
+
+              {message && <p className={messageType === "success" ? "sonic-message" : "sonic-error"}>{message}</p>}
+              <div className="sonic-dialog-actions"><Button type="button" variant="outline" onClick={() => setNewTaskOpen(false)}>Cancel</Button><Button disabled={loading || !health}>{loading ? <LoaderCircle className="animate-spin" /> : <AudioLines />}{loading ? "Adding…" : "Start transcription"}</Button></div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {historyOpen && (
+        <div className="sonic-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryOpen(false); }}>
+          <section className="sonic-history-dialog" role="dialog" aria-modal="true" aria-labelledby="history-title">
+            <header className="sonic-dialog-header">
+              <div><h2 id="history-title">History</h2><p>Search by title, creator, source, or date.</p></div>
+              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close history"><X /></button>
+            </header>
+
+            <div className="sonic-history-toolbar">
+              <label className="sonic-search-field"><Search /><input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history…" autoFocus /></label>
+              <Select value={creatorFilter || "all"} onValueChange={(value) => setCreatorFilter(value === "all" ? "" : value)}>
+                <SelectTrigger className="sonic-creator-filter"><SelectValue placeholder="All creators" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All creators</SelectItem>{creators.map((creator) => <SelectItem key={creator} value={creator}>{creator}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            <div className="sonic-history-results-meta">
+              <span>{filteredHistory.length} {filteredHistory.length === 1 ? "result" : "results"}</span>
+              {(historyQuery || creatorFilter) && <button type="button" onClick={() => { setHistoryQuery(""); setCreatorFilter(""); }}>Clear filters</button>}
+            </div>
+
+            <div className="sonic-history-browser">
+              {filteredHistory.length ? filteredHistory.map((job) => (
+                <div className="sonic-history-browser-row" key={job.id}>
+                  <button type="button" className="sonic-history-browser-select" onClick={() => void openJob(job)}>
+                    <span className="sonic-source-icon"><SourceIcon source={job.source_type} /></span>
+                    <span className="sonic-history-main"><strong>{job.title}</strong><small>{job.creator_name || sourceLabel(job.source_type)} · {formatDate(job.created_at)}</small></span>
+                    <span className={"sonic-job-state is-" + job.status}>{job.status === "processing" && <LoaderCircle className="animate-spin" />}{job.status}</span>
+                    <span className="sonic-history-duration">{job.duration ? formatTime(job.duration) : "—"}</span>
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild><button className="sonic-history-menu" type="button" aria-label={"Actions for " + job.title}><MoreVertical /></button></DropdownMenuTrigger>
+                    <DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => void renameJob(job)}><Pencil />Rename</DropdownMenuItem><DropdownMenuItem variant="destructive" onSelect={() => void deleteJob(job)}><Trash2 />Delete</DropdownMenuItem></DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )) : <div className="sonic-history-empty"><Search /><div><strong>No matching history</strong><p>Try another title, creator, or filter.</p></div></div>}
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
   );
 }
