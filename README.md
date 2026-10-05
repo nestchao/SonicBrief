@@ -12,7 +12,7 @@ SonicBrief is a localhost-only audio transcription and summarization workspace. 
 - Gemini transcription fallback when the local result fails or is low quality
 - Simplified Chinese summaries through Gemini
 - Optional speaker diarization through `pyannote.audio`
-- Local SQLite history with title/creator search and YouTube/Bilibili creator metadata
+- Local SQLite history with title/creator search and downloaded-media creator metadata
 - Dedicated Summary, Transcript, and Details workspace views
 - Full-transcript search and one-click copy
 - Markdown-formatted summaries with headings, bold text, lists, quotes, and timestamp chips
