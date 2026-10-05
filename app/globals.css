@@ -1850,3 +1850,63 @@ button, input { font: inherit; }
   font-size: .65rem;
   line-height: 1.5;
 }
+
+
+.sonic-summary-preset-field,
+.sonic-summary-instructions-field {
+  display: grid;
+  gap: .42rem;
+}
+
+.sonic-summary-preset-field > label,
+.sonic-summary-instructions-field > label {
+  color: #4b5262;
+  font-size: .68rem;
+  font-weight: 750;
+}
+
+.sonic-summary-preset-field > p,
+.sonic-summary-instructions-field > p {
+  margin: 0;
+  color: #8a91a1;
+  font-size: .62rem;
+  line-height: 1.45;
+}
+
+.sonic-summary-instructions-field textarea {
+  min-height: 5.4rem;
+  resize: vertical;
+}
+
+.sonic-advanced-options .sonic-summary-preset-field,
+.sonic-advanced-options .sonic-summary-instructions-field {
+  margin: .8rem .85rem 0;
+}
+
+.sonic-summary-options {
+  margin-bottom: 1.25rem;
+  border: 1px solid #e6e8f0;
+  border-radius: .72rem;
+  background: #fbfbfe;
+}
+
+.sonic-summary-options > summary {
+  padding: .72rem .85rem;
+  color: #6259a1;
+  cursor: pointer;
+  font-size: .67rem;
+  font-weight: 750;
+}
+
+.sonic-summary-options-grid {
+  display: grid;
+  grid-template-columns: minmax(11rem, .8fr) minmax(0, 1.2fr);
+  gap: .85rem;
+  padding: 0 .85rem .85rem;
+}
+
+@media (max-width: 700px) {
+  .sonic-summary-options-grid {
+    grid-template-columns: 1fr;
+  }
+}
