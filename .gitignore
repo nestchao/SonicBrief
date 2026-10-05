@@ -4,7 +4,15 @@ dist/
 .sites-runtime/
 .wrangler/
 .venv/
+
+# Local environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
 backend/.env
+!/.env.example
+!/backend/.env.example
+
 data/
 *.pyc
 __pycache__/
