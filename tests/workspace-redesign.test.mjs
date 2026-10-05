@@ -111,8 +111,8 @@ test("summary presets and custom instructions are wired end to end", async () =>
 
   assert.match(app, /summary_style: str = Form\("standard"\)/);
   assert.match(app, /summary_custom_instructions: str = Form\(""\)/);
-  assert.match(app, /generate_summary: bool = Form\(False\)/);
-  assert.match(app, /allow_gemini_fallback: bool = Form\(False\)/);
+  assert.equal((app.match(/generate_summary: bool = Form\(False\)/g) ?? []).length, 2);
+  assert.equal((app.match(/allow_gemini_fallback: bool = Form\(False\)/g) ?? []).length, 2);
   assert.ok(source.includes('body.set("generate_summary", "true")'));
   assert.ok(source.includes('body.set("allow_gemini_fallback", "true")'));
   assert.match(app, /validate_summary_options/);
@@ -179,6 +179,7 @@ test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", 
   assert.match(mcpServer, /generate_gemini_summary: bool = False/);
   assert.match(mcpServer, /allow_gemini_fallback: bool = False/);
   assert.match(mcpServer, /default_mcp_mode": "local transcript only"/);
+  assert.match(mcpServer, /"--self-test" in sys\.argv/);
   assert.match(mcpServer, /mcp\.run\(\)/);
   assert.match(requirements, /mcp>=2,<3/);
   assert.match(requirements, /httpx>=0\.28,<1/);
@@ -186,6 +187,7 @@ test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", 
 
 
 test("Docker MCP image keeps secrets out and persists STT data and model cache", async () => {
+  const mcpServer = await readFile(path.join(root, "sonicbrief_mcp.py"), "utf8");
   const dockerfile = await readFile(path.join(root, "Dockerfile"), "utf8");
   const dockerignore = await readFile(path.join(root, ".dockerignore"), "utf8");
   const compose = await readFile(path.join(root, "compose.yaml"), "utf8");
@@ -205,4 +207,5 @@ test("Docker MCP image keeps secrets out and persists STT data and model cache",
   assert.match(compose, /sonicbrief-data:\/data/);
   assert.match(compose, /GEMINI_API_KEY/);
   assert.doesNotMatch(compose, /ports:/);
+  assert.match(mcpServer, /backend_started_by_mcp/);
 });
