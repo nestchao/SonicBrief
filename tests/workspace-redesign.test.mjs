@@ -88,3 +88,31 @@ test("media URL input auto-detects an explicit supported-site allowlist", async 
   assert.match(app, /pipeline\.source_label\(source_type\)/);
   assert.doesNotMatch(pipeline, /Only YouTube and Bilibili links are supported/);
 });
+
+
+test("summary presets and custom instructions are wired end to end", async () => {
+  const source = await readFile(path.join(root, "app", "sonicbrief.tsx"), "utf8");
+  const pipeline = await readFile(path.join(root, "backend", "pipeline.py"), "utf8");
+  const app = await readFile(path.join(root, "backend", "app.py"), "utf8");
+
+  for (const style of ["brief", "standard", "detailed", "study_notes", "key_points", "custom"]) {
+    assert.ok(pipeline.includes('"' + style + '"'));
+    assert.ok(source.includes('"' + style + '"'));
+  }
+
+  assert.ok(source.includes('useState<SummaryStyle>("standard")'));
+  assert.ok(source.includes('sonicbrief-summary-style'));
+  assert.ok(source.includes('body.set("summary_style", summaryStyle)'));
+  assert.ok(source.includes('body.set("summary_custom_instructions", summaryCustomInstructions.trim())'));
+  assert.ok(source.includes("Custom summary style needs instructions."));
+  assert.ok(source.includes('maxLength={4000}'));
+  assert.ok(source.includes("Summary options ·"));
+  assert.ok(source.includes("Additional instructions · optional"));
+
+  assert.match(app, /summary_style: str = Form\("standard"\)/);
+  assert.match(app, /summary_custom_instructions: str = Form\(""\)/);
+  assert.match(app, /validate_summary_options/);
+  assert.match(pipeline, /Custom summary style requires custom instructions/);
+  assert.match(pipeline, /Custom summary instructions must be 4,000 characters or fewer/);
+  assert.match(pipeline, /USER CUSTOM INSTRUCTIONS/);
+});
