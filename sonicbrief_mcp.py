@@ -394,12 +394,16 @@ def get_job(job_id: str) -> dict[str, Any]:
     return _job_overview(job)
 
 
-@mcp.tool()
-def list_jobs(limit: int = 20) -> list[dict[str, Any]]:
-    """List recent SonicBrief transcription jobs without loading full transcript content."""
+def _list_jobs(limit: int) -> list[dict[str, Any]]:
     safe_limit = max(1, min(int(limit), 200))
     jobs = _api_request("GET", f"/api/jobs?limit={safe_limit}")
     return [_job_overview(job) for job in jobs]
+
+
+@mcp.tool()
+def list_jobs(limit: int = 20) -> list[dict[str, Any]]:
+    """List recent SonicBrief transcription jobs without loading full transcript content."""
+    return _list_jobs(limit)
 
 
 @mcp.tool()
@@ -413,7 +417,7 @@ def search_jobs(
     needle = query.strip().lower()
     creator_needle = creator.strip().lower()
     source_needle = source.strip().lower()
-    candidates = list_jobs(limit=max(1, min(int(limit), 200)))
+    candidates = _list_jobs(max(1, min(int(limit), 200)))
 
     matches: list[dict[str, Any]] = []
     for job in candidates:
