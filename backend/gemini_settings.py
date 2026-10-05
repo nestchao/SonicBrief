@@ -39,9 +39,9 @@ def get_gemini_model() -> str:
     """Return one supported Gemini model for both fallback and summaries."""
     candidates = (
         os.getenv(_MODEL_ENV, "").strip(),
-        getattr(config, "GEMINI_MODEL", "").strip(),
         os.getenv("GEMINI_SUMMARY_MODEL", "").strip(),
         os.getenv("GEMINI_TRANSCRIPTION_MODEL", "").strip(),
+        getattr(config, "GEMINI_MODEL", "").strip(),
     )
     for candidate in candidates:
         if candidate in ALLOWED_GEMINI_MODELS:
