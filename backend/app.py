@@ -218,9 +218,12 @@ async def create_upload_job(
     summary_language: str = Form("zh-CN"),
     summary_style: str = Form("standard"),
     summary_custom_instructions: str = Form(""),
+    generate_summary: bool = Form(False),
+    allow_gemini_fallback: bool = Form(False),
 ) -> dict[str, object]:
     validate_options(model_name, language)
-    summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
+    if generate_summary:
+        summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
     filename = Path(file.filename or "recording").name
     suffix = Path(filename).suffix.lower()
     if suffix not in config.ALLOWED_EXTENSIONS:
@@ -251,6 +254,8 @@ async def create_upload_job(
         model_name=model_name, language=language, diarize=diarize,
         summary_language=summary_language, summary_style=summary_style,
         summary_custom_instructions=summary_custom_instructions,
+        generate_summary=generate_summary,
+        allow_gemini_fallback=allow_gemini_fallback,
     )
     return storage.get_job(record["id"])
 
@@ -281,6 +286,8 @@ def create_url_job(
         model_name=model_name, language=language, diarize=diarize,
         summary_language=summary_language, summary_style=summary_style,
         summary_custom_instructions=summary_custom_instructions,
+        generate_summary=generate_summary,
+        allow_gemini_fallback=allow_gemini_fallback,
     )
     return storage.get_job(record["id"])
 
