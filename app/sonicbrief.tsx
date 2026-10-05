@@ -197,7 +197,7 @@ export function SonicBriefApp() {
   const recentJobs = jobs.slice(0, 4);
 
   const currentStageIndex = useMemo(() => { const index = stages.findIndex((item) => item.key === activeJob?.stage); return index < 0 ? 0 : index; }, [activeJob?.stage]);
-  const timestampedTranscript = useMemo(() => (activeJob?.transcript ?? []).map((segment) => `[${formatTime(segment.start)}]${segment.speaker ? ` ${segment.speaker}:` : ""} ${segment.text}`).join("\\n"), [activeJob?.transcript]);
+  const timestampedTranscript = useMemo(() => (activeJob?.transcript ?? []).map((segment) => `[${formatTime(segment.start)}]${segment.speaker ? ` ${segment.speaker}:` : ""} ${segment.text}`).join("\n"), [activeJob?.transcript]);
 
   function chooseFiles(nextFiles?: FileList | File[] | null) {
     if (!nextFiles?.length) return; const combined = [...files, ...Array.from(nextFiles)]; const unique = combined.filter((item, index) => combined.findIndex((candidate) => candidate.name === item.name && candidate.size === item.size && candidate.lastModified === item.lastModified) === index); setFiles(unique.slice(0, 20)); setMessage(unique.length > 20 ? "A batch can contain at most 20 files; extra files were not added." : null);
@@ -208,9 +208,9 @@ export function SonicBriefApp() {
     if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
     if (source !== "upload" && !url.trim()) { setMessage(`Paste at least one ${source === "youtube" ? "YouTube" : "Bilibili"} link.`); return; }
     const extractUrl = (value: string) => { const match = value.match(/https?:\/\/[^\s<>]+/i); return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : ""; };
-    const urls = source === "upload" ? [] : [...new Set(url.split(/\\r?\\n/).map(extractUrl).filter(Boolean))].slice(0, 20);
+    const urls = source === "upload" ? [] : [...new Set(url.split(/\r?\n/).map(extractUrl).filter(Boolean))].slice(0, 20);
     if (source !== "upload" && !urls.length) { setMessage("Paste at least one valid URL."); return; }
-    if (source !== "upload" && url.split(/\\r?\\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
+    if (source !== "upload" && url.split(/\r?\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
     setLoading(true);
     try {
       const createRequest = async (file?: File, sourceUrl?: string) => {
