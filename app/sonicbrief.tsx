@@ -446,7 +446,7 @@ export function SonicBriefApp() {
                     <div className="sonic-details-view">
                       <div className="sonic-details-grid">
                         <div><span>Source</span><strong>{sourceLabel(activeJob.source_type)}</strong></div>
-                        <div><span>Creator / YouTuber</span><strong>{activeJob.creator_name || "Not available"}</strong></div>
+                        <div><span>Creator / Channel</span><strong>{activeJob.creator_name || "Not available"}</strong></div>
                         <div><span>Duration</span><strong>{activeJob.duration ? formatTime(activeJob.duration) : "—"}</strong></div>
                         <div><span>Transcript language</span><strong>{activeJob.language || "—"}</strong></div>
                         <div><span>Whisper model</span><strong>{activeJob.model_name || "—"}</strong></div>
