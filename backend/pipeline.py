@@ -133,8 +133,23 @@ def normalize_audio(source: Path, destination: Path) -> None:
         raise RuntimeError(result.stderr.strip() or "FFmpeg could not decode this media file.")
 
 
+_ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _download_error_message(error: Exception) -> str:
+    message = _ANSI_ESCAPE_PATTERN.sub("", str(error)).strip()
+    lowered = message.lower()
+    if "bytes read" in lowered and "more expected" in lowered:
+        return (
+            "Media download was interrupted before the source finished sending the file. "
+            "SonicBrief retried the transfer, but the Bilibili/CDN connection still ended early. "
+            "Try the job again; if it repeats, update yt-dlp or try again later."
+        )
+    return f"Media download failed after retries: {message}"
+
+
 def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
-    classify_url(url)
+    source_type = classify_url(url)
     output_template = str(directory / "source.%(ext)s")
     options = {
         "format": "bestaudio/best",
@@ -143,18 +158,42 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
+        "continuedl": True,
+        "retries": 10,
+        "fragment_retries": 10,
+        "extractor_retries": 3,
+        "file_access_retries": 3,
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
         "socket_timeout": 30,
     }
-    try:
-        with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(url, download=True)
-    except yt_dlp.utils.DownloadError as exc:
-        raise RuntimeError(f"Media download failed: {exc}") from exc
+    if source_type == "bilibili":
+        # Bilibili media is commonly served from CDN endpoints that can close a
+        # long response early. Smaller ranged requests make recovery/resume more
+        # reliable without changing which video/audio stream yt-dlp selects.
+        options["http_chunk_size"] = 5 * 1024 * 1024
 
-    candidates = sorted(directory.glob("source.*"), key=lambda item: item.stat().st_mtime, reverse=True)
+    last_error: Exception | None = None
+    info: dict[str, Any] | None = None
+    for attempt in range(2):
+        try:
+            with yt_dlp.YoutubeDL(options) as downloader:
+                info = downloader.extract_info(url, download=True)
+            break
+        except yt_dlp.utils.DownloadError as exc:
+            last_error = exc
+            if attempt == 0:
+                time.sleep(1.0)
+
+    if info is None:
+        raise RuntimeError(_download_error_message(last_error or RuntimeError("Unknown download error."))) from last_error
+
+    candidates = sorted(
+        (item for item in directory.glob("source.*") if not item.name.endswith(".part")),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
     if not candidates:
-        raise RuntimeError("The downloader completed without producing an audio file.")
+        raise RuntimeError("The downloader completed without producing a complete audio file.")
     metadata = {
         "title": info.get("title") or "Online video",
         "duration": info.get("duration"),
