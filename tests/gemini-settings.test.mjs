@@ -25,7 +25,8 @@ test("backend keeps Gemini secrets private and uses one selected model", async (
   assert.match(settings, /DEFAULT_GEMINI_MODEL = "gemini-3\.8-flash"/);
   assert.match(settings, /def save_gemini_model/);
   assert.match(app, /"models": gemini_settings\.list_gemini_models\(\)/);
-  assert.match(app, /model=gemini_settings\.get_gemini_model\(\)/);
+  assert.match(app, /payload\.get\("model", gemini_settings\.get_gemini_model\(\)\)/);
+  assert.match(app, /storage\.save_summary\([^\n]*gemini_settings\.get_gemini_model\(\)\)/);
   assert.match(pipeline, /gemini_settings\.get_gemini_api_key\(\)/);
   assert.match(pipeline, /gemini_settings\.get_gemini_model\(\)/);
   assert.doesNotMatch(app, /"api_key"\s*:/);
