@@ -70,6 +70,11 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
     void refresh();
   }
 
+  function handleModelChange(value: string) {
+    setModel(value);
+    setMessage(null);
+  }
+
   async function testSettings() {
     if (!apiKey.trim() && !configured) {
       setMessageType("error");
@@ -163,20 +168,38 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
       </Button>
 
       {open && (
-        <div className="sonic-settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+        <div
+          className="sonic-settings-backdrop"
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+        >
           <section className="sonic-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="gemini-settings-title">
             <div className="sonic-settings-header">
               <div>
                 <p className="sonic-result-eyebrow"><KeyRound />GOOGLE AI STUDIO</p>
                 <h2 id="gemini-settings-title">Gemini settings</h2>
-                <p>Use your own Google AI Studio key and choose which Gemini model SonicBrief uses.</p>
+                <p>Connect your own API key and choose the Gemini model SonicBrief uses for cloud features.</p>
               </div>
               <button type="button" className="sonic-settings-close" aria-label="Close settings" onClick={() => setOpen(false)}><X /></button>
             </div>
 
             <div className="sonic-settings-body">
-              <div className="sonic-settings-field">
-                <Label htmlFor="gemini-api-key">API key</Label>
+              <div className={configured ? "sonic-settings-connection is-connected" : "sonic-settings-connection"}>
+                <span className="sonic-settings-connection-icon"><Check /></span>
+                <div>
+                  <strong>{configured ? "Google AI Studio connected" : "Google AI Studio not connected"}</strong>
+                  <small>{configured ? "Your saved key stays on this computer." : "Add an API key to enable summaries and cloud fallback."}</small>
+                </div>
+              </div>
+
+              <div className="sonic-settings-section">
+                <div className="sonic-settings-section-heading">
+                  <div>
+                    <Label htmlFor="gemini-api-key">API key</Label>
+                    <p>{configured ? "Leave this blank to keep the saved key." : "Paste a key from Google AI Studio."}</p>
+                  </div>
+                </div>
+
                 <div className="sonic-settings-key-row">
                   <input
                     id="gemini-api-key"
@@ -184,48 +207,71 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                     type={showKey ? "text" : "password"}
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder={configured ? "Leave blank to keep the saved key" : "Paste your Google AI Studio API key"}
+                    placeholder={configured ? "Saved key will be kept" : "Paste your Google AI Studio API key"}
                     value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
+                      setMessage(null);
+                    }}
                   />
                   <button type="button" className="sonic-settings-eye" aria-label={showKey ? "Hide API key" : "Show API key"} onClick={() => setShowKey((value) => !value)}>
                     {showKey ? <EyeOff /> : <Eye />}
                   </button>
                 </div>
-                <p className="sonic-settings-help">The key is saved only in <code>backend/.env</code> on this computer and is never returned to the interface.</p>
+                <p className="sonic-settings-help">Stored locally in <code>backend/.env</code>. SonicBrief never returns the saved key to the interface.</p>
               </div>
 
-              <div className="sonic-settings-field">
-                <Label htmlFor="gemini-model">Gemini model</Label>
-                <Select value={model} onValueChange={setModel} disabled={busy || testing}>
+              <div className="sonic-settings-section">
+                <div className="sonic-settings-section-heading">
+                  <div>
+                    <Label htmlFor="gemini-model">Gemini model</Label>
+                    <p>Used for both cloud transcription fallback and summaries.</p>
+                  </div>
+                </div>
+
+                <Select value={model} onValueChange={handleModelChange} disabled={busy || testing}>
                   <SelectTrigger id="gemini-model" className="sonic-settings-model-trigger">
                     <SelectValue placeholder="Choose a Gemini model" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="sonic-settings-model-menu" position="popper" align="start">
                     {models.map((item) => (
                       <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="sonic-settings-help">
-                  {selectedModel?.description ?? "Used for Gemini transcription fallback and summaries."}
-                  {" "}This selection is used for both cloud fallback transcription and summaries.
+
+                <div className="sonic-settings-model-detail">
+                  <strong>{selectedModel?.label ?? model}</strong>
+                  <span>{selectedModel?.description ?? "Available for Gemini-powered SonicBrief features."}</span>
+                </div>
+              </div>
+
+              {message && (
+                <p
+                  className={messageType === "success" ? "sonic-message sonic-settings-message" : "sonic-error sonic-settings-message"}
+                  role={messageType === "success" ? "status" : "alert"}
+                >
+                  {message}
                 </p>
+              )}
+
+              <div className="sonic-settings-footer">
+                <div>
+                  {configured && (
+                    <Button variant="ghost" className="sonic-settings-clear" onClick={() => void clearKey()} disabled={busy || testing}>
+                      Remove API key
+                    </Button>
+                  )}
+                </div>
+                <div className="sonic-settings-actions">
+                  <Button variant="outline" onClick={() => void testSettings()} disabled={testing || busy || (!apiKey.trim() && !configured)}>
+                    {testing ? <LoaderCircle className="animate-spin" /> : <Check />} Test connection
+                  </Button>
+                  <Button onClick={() => void saveSettings()} disabled={busy || testing || (!apiKey.trim() && !configured)}>
+                    {busy ? <LoaderCircle className="animate-spin" /> : <KeyRound />} Save changes
+                  </Button>
+                </div>
               </div>
-
-              {configured && !apiKey && <div className="sonic-settings-status"><Check /> A Gemini API key is configured.</div>}
-              {message && <p className={messageType === "success" ? "sonic-message" : "sonic-error"} role={messageType === "success" ? "status" : "alert"}>{message}</p>}
-
-              <div className="sonic-settings-actions">
-                <Button variant="outline" onClick={() => void testSettings()} disabled={testing || busy || (!apiKey.trim() && !configured)}>
-                  {testing ? <LoaderCircle className="animate-spin" /> : <Check />} Test
-                </Button>
-                <Button onClick={() => void saveSettings()} disabled={busy || testing || (!apiKey.trim() && !configured)}>
-                  {busy ? <LoaderCircle className="animate-spin" /> : <KeyRound />} Save settings
-                </Button>
-              </div>
-
-              {configured && <Button variant="ghost" className="sonic-settings-clear" onClick={() => void clearKey()} disabled={busy || testing}>Remove saved API key</Button>}
             </div>
           </section>
         </div>
