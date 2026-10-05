@@ -67,54 +67,84 @@ def health() -> dict[str, object]:
 
 @app.get("/api/settings/gemini")
 def gemini_settings_status() -> dict[str, object]:
-    return {"configured": gemini_settings.is_configured()}
+    return {
+        "configured": gemini_settings.is_configured(),
+        "model": gemini_settings.get_gemini_model(),
+        "models": gemini_settings.list_gemini_models(),
+    }
 
 
 @app.post("/api/settings/gemini")
 def save_gemini_settings(payload: dict[str, object]) -> dict[str, object]:
     api_key = payload.get("api_key")
-    if not isinstance(api_key, str):
-        raise HTTPException(status_code=400, detail="API key is required.")
-    api_key = api_key.strip()
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API key is required.")
-    if len(api_key) > 512:
-        raise HTTPException(status_code=400, detail="API key is too long.")
+    model = payload.get("model", gemini_settings.get_gemini_model())
+
+    if api_key is not None:
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise HTTPException(status_code=400, detail="API key must be a non-empty string.")
+        api_key = api_key.strip()
+        if len(api_key) > 512:
+            raise HTTPException(status_code=400, detail="API key is too long.")
+
+    if not isinstance(model, str):
+        raise HTTPException(status_code=400, detail="Gemini model is required.")
 
     try:
-        gemini_settings.save_gemini_api_key(api_key)
+        selected_model = gemini_settings.save_gemini_model(model)
+        if api_key is not None:
+            gemini_settings.save_gemini_api_key(api_key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"configured": True}
+
+    return {
+        "configured": gemini_settings.is_configured(),
+        "model": selected_model,
+        "models": gemini_settings.list_gemini_models(),
+    }
 
 
 @app.post("/api/settings/gemini/test")
 async def test_gemini_settings(payload: dict[str, object]) -> dict[str, object]:
     api_key = payload.get("api_key")
-    if not isinstance(api_key, str) or not api_key.strip():
+    model = payload.get("model", gemini_settings.get_gemini_model())
+
+    if api_key is None:
+        key = gemini_settings.get_gemini_api_key()
+    elif isinstance(api_key, str):
+        key = api_key.strip()
+    else:
+        raise HTTPException(status_code=400, detail="API key must be a string.")
+
+    if not key:
         raise HTTPException(status_code=400, detail="API key is required.")
-    api_key = api_key.strip()
-    if len(api_key) > 512:
+    if len(key) > 512:
         raise HTTPException(status_code=400, detail="API key is too long.")
+    if not isinstance(model, str) or model not in gemini_settings.ALLOWED_GEMINI_MODELS:
+        raise HTTPException(status_code=400, detail="Unsupported Gemini model.")
+
     try:
         from google import genai
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=key)
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model=config.GEMINI_SUMMARY_MODEL,
+            model=model,
             contents="Reply with OK.",
         )
         if not (response.text or "").strip():
             raise RuntimeError("Gemini returned an empty response.")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Gemini connection failed: {exc}") from exc
-    return {"ok": True}
+    return {"ok": True, "model": model}
 
 
 @app.delete("/api/settings/gemini")
 def clear_gemini_settings() -> dict[str, object]:
     gemini_settings.clear_gemini_api_key()
-    return {"configured": False}
+    return {
+        "configured": False,
+        "model": gemini_settings.get_gemini_model(),
+        "models": gemini_settings.list_gemini_models(),
+    }
 
 
 @app.get("/api/jobs")
@@ -217,7 +247,7 @@ async def regenerate_summary(
         summary = await asyncio.to_thread(pipeline.make_summary, transcript, summary_language, summary_style)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    storage.save_summary(job_id, summary, summary_language, summary_style, config.GEMINI_SUMMARY_MODEL)
+    storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
     return storage.get_job(job_id)
 
 
