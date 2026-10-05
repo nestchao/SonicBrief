@@ -116,3 +116,11 @@ test("summary presets and custom instructions are wired end to end", async () =>
   assert.match(pipeline, /Custom summary instructions must be 4,000 characters or fewer/);
   assert.match(pipeline, /USER CUSTOM INSTRUCTIONS/);
 });
+
+
+test("media URL extraction accepts copied share text and strips closing punctuation", async () => {
+  const source = await readFile(path.join(root, "app", "sonicbrief.tsx"), "utf8");
+
+  assert.match(source, /value\.match\(\/https\?:\\\/\\\/\[\^\\s<>\]\+\/i\)/);
+  assert.ok(source.includes('replace(/[，。！？、）】》)\\]}>"\'”’]+$/u, "")'));
+});
