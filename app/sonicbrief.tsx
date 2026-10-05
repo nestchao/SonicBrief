@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { GeminiSettings } from "@/app/gemini-settings";
 
 type InputSource = "url" | "upload";
+type SummaryStyle = "brief" | "standard" | "detailed" | "study_notes" | "key_points" | "custom";
 type JobSource = "youtube" | "bilibili" | "vimeo" | "tiktok" | "twitter" | "soundcloud" | "twitch" | "upload" | "audio_upload" | "video_upload";
 type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 type TranscriptSegment = { start: number; end: number; text: string; speaker?: string | null };
@@ -40,6 +41,23 @@ const stages = [
   { key: "diarize", label: "Identify speakers", icon: Mic2 },
   { key: "summarize", label: "Create summary", icon: Sparkles },
 ];
+
+const SUMMARY_STYLE_OPTIONS: { value: SummaryStyle; label: string; description: string }[] = [
+  { value: "brief", label: "Brief", description: "Quick overview with only the most important points." },
+  { value: "standard", label: "Standard", description: "Balanced overview, main ideas, important details, and conclusion." },
+  { value: "detailed", label: "Detailed", description: "Thorough explanation with context, examples, details, and timestamps." },
+  { value: "study_notes", label: "Study Notes", description: "Concepts, definitions, examples, facts, and review-ready notes." },
+  { value: "key_points", label: "Key Points", description: "Takeaways, decisions, recommendations, and action items." },
+  { value: "custom", label: "Custom", description: "Use your own summary instructions." },
+];
+
+function summaryStyleLabel(style: SummaryStyle) {
+  return SUMMARY_STYLE_OPTIONS.find((item) => item.value === style)?.label ?? "Standard";
+}
+
+function summaryStyleDescription(style: SummaryStyle) {
+  return SUMMARY_STYLE_OPTIONS.find((item) => item.value === style)?.description ?? "";
+}
 
 function formatTime(seconds = 0) {
   const total = Math.max(0, Math.floor(seconds));
@@ -175,6 +193,8 @@ export function SonicBriefApp() {
   const [transcriptQuery, setTranscriptQuery] = useState("");
   const [resultTab, setResultTab] = useState<"summary" | "transcript" | "details">("summary");
   const [showPipelineDetails, setShowPipelineDetails] = useState(false);
+  const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>("standard");
+  const [summaryCustomInstructions, setSummaryCustomInstructions] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const hasPendingJobs = jobs.some((job) => ["queued", "processing"].includes(job.status));
   const loadHealth = useCallback(async () => { try { const response = await fetch(`${API_BASE}/api/health`); if (!response.ok) throw new Error("Backend unavailable"); setHealth(await response.json()); } catch { setHealth(null); } }, []);
@@ -190,6 +210,13 @@ export function SonicBriefApp() {
     setDiarize(Boolean(health.diarization_configured));
   }, [health?.diarization_configured, diarizeTouched]);
   useEffect(() => { setResultTab("summary"); setTranscriptQuery(""); setShowPipelineDetails(false); }, [activeJob?.id]);
+  useEffect(() => {
+    const savedStyle = window.localStorage.getItem("sonicbrief-summary-style") as SummaryStyle | null;
+    if (savedStyle && SUMMARY_STYLE_OPTIONS.some((item) => item.value === savedStyle)) setSummaryStyle(savedStyle);
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem("sonicbrief-summary-style", summaryStyle);
+  }, [summaryStyle]);
 
   const creators = useMemo(() => [...new Set(jobs.map((job) => job.creator_name?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)), [jobs]);
   const filteredHistory = useMemo(() => {
@@ -219,8 +246,18 @@ export function SonicBriefApp() {
     if (!nextFiles?.length) return; const combined = [...files, ...Array.from(nextFiles)]; const unique = combined.filter((item, index) => combined.findIndex((candidate) => candidate.name === item.name && candidate.size === item.size && candidate.lastModified === item.lastModified) === index); setFiles(unique.slice(0, 20)); setMessage(unique.length > 20 ? "A batch can contain at most 20 files; extra files were not added." : null);
   }
 
+  function validateSummarySelection() {
+    if (summaryStyle === "custom" && !summaryCustomInstructions.trim()) {
+      setMessageType("error");
+      setMessage("Custom summary style needs instructions.");
+      return false;
+    }
+    return true;
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault(); setMessageType("error"); setMessage(null);
+    if (!validateSummarySelection()) return;
     if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
     if (source === "url" && !url.trim()) { setMessage("Paste at least one supported media link."); return; }
     const extractUrl = (value: string) => { const match = value.match(/https?:\/\/[^\s<>]+/i); return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : ""; };
@@ -230,7 +267,7 @@ export function SonicBriefApp() {
     setLoading(true);
     try {
       const createRequest = async (file?: File, sourceUrl?: string) => {
-        const body = new FormData(); body.set("model_name", model); body.set("language", language); body.set("diarize", String(diarize)); body.set("summary_language", "zh-CN"); body.set("summary_style", "detailed");
+        const body = new FormData(); body.set("model_name", model); body.set("language", language); body.set("diarize", String(diarize)); body.set("summary_language", "zh-CN"); body.set("summary_style", summaryStyle); body.set("summary_custom_instructions", summaryCustomInstructions.trim());
         let endpoint = `${API_BASE}/api/jobs/upload`; if (file) body.set("file", file); else { endpoint = `${API_BASE}/api/jobs/url`; body.set("url", sourceUrl ?? ""); }
         const response = await fetch(endpoint, { method: "POST", body }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.detail ?? "Unable to create this task."); return data as Job;
       };
@@ -251,9 +288,25 @@ export function SonicBriefApp() {
   }
 
   async function regenerateSummary() {
-    if (!activeJob) return; setLoading(true); setMessage(null);
-    try { const body = new FormData(); body.set("summary_language", "zh-CN"); body.set("summary_style", "detailed"); const response = await fetch(`${API_BASE}/api/jobs/${activeJob.id}/summaries`, { method: "POST", body }); const data = await response.json(); if (!response.ok) throw new Error(data.detail ?? "Could not regenerate the summary."); setActiveJob(data as Job); setJobs((current) => current.map((job) => job.id === data.id ? data : job)); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Could not regenerate the summary."); } finally { setLoading(false); }
+    if (!activeJob || !validateSummarySelection()) return;
+    setLoading(true); setMessage(null);
+    try {
+      const body = new FormData();
+      body.set("summary_language", "zh-CN");
+      body.set("summary_style", summaryStyle);
+      body.set("summary_custom_instructions", summaryCustomInstructions.trim());
+      const response = await fetch(`${API_BASE}/api/jobs/${activeJob.id}/summaries`, { method: "POST", body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail ?? "Could not regenerate the summary.");
+      setActiveJob(data as Job);
+      setJobs((current) => current.map((job) => job.id === data.id ? data : job));
+      setMessageType("success");
+      setMessage(`Summary regenerated using ${summaryStyleLabel(summaryStyle)}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not regenerate the summary.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function renameJob(job: Job) {
@@ -412,6 +465,32 @@ export function SonicBriefApp() {
                           <div><p className="sonic-result-eyebrow"><Languages />简体中文</p><h2>Summary</h2></div>
                           <Button variant="outline" size="sm" onClick={regenerateSummary} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Regenerate</Button>
                         </div>
+                        <details className="sonic-summary-options">
+                          <summary>Summary options · {summaryStyleLabel(summaryStyle)}</summary>
+                          <div className="sonic-summary-options-grid">
+                            <div className="sonic-summary-preset-field">
+                              <Label htmlFor="result-summary-style">Summary style</Label>
+                              <Select value={summaryStyle} onValueChange={(value) => setSummaryStyle(value as SummaryStyle)}>
+                                <SelectTrigger id="result-summary-style" className="w-full"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {SUMMARY_STYLE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <p>{summaryStyleDescription(summaryStyle)}</p>
+                            </div>
+                            <div className="sonic-summary-instructions-field">
+                              <Label htmlFor="result-summary-instructions">{summaryStyle === "custom" ? "Custom summary instructions" : "Additional instructions · optional"}</Label>
+                              <Textarea
+                                id="result-summary-instructions"
+                                rows={3}
+                                maxLength={4000}
+                                value={summaryCustomInstructions}
+                                onChange={(event) => setSummaryCustomInstructions(event.target.value)}
+                                placeholder={summaryStyle === "custom" ? "Describe exactly how you want this summary written." : "Optional instructions for this regeneration."}
+                              />
+                            </div>
+                          </div>
+                        </details>
                         <div className="sonic-summary-copy">
                           {activeJob.summary ? <SummaryMarkdown content={activeJob.summary} /> : <p>No summary was generated. Add a Gemini API key, then regenerate.</p>}
                         </div>
@@ -497,6 +576,28 @@ export function SonicBriefApp() {
                 <div className="sonic-config-grid">
                   <div><Label htmlFor="whisper-model">Whisper model</Label><Select value={model} onValueChange={setModel}><SelectTrigger id="whisper-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="turbo">Turbo · recommended</SelectItem><SelectItem value="large-v3">Large v3 · best accuracy</SelectItem><SelectItem value="distil-large-v3">Distil large v3 · English</SelectItem><SelectItem value="small">Small · faster</SelectItem></SelectContent></Select></div>
                   <div><Label htmlFor="language">Transcript language</Label><Select value={language} onValueChange={setLanguage}><SelectTrigger id="language" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem><SelectItem value="zh">Chinese</SelectItem><SelectItem value="ms">Malay</SelectItem><SelectItem value="ja">Japanese</SelectItem><SelectItem value="ko">Korean</SelectItem><SelectItem value="id">Indonesian</SelectItem></SelectContent></Select></div>
+                </div>
+                <div className="sonic-summary-preset-field">
+                  <Label htmlFor="new-summary-style">Summary style</Label>
+                  <Select value={summaryStyle} onValueChange={(value) => setSummaryStyle(value as SummaryStyle)}>
+                    <SelectTrigger id="new-summary-style" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SUMMARY_STYLE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p>{summaryStyleDescription(summaryStyle)}</p>
+                </div>
+                <div className="sonic-summary-instructions-field">
+                  <Label htmlFor="new-summary-instructions">{summaryStyle === "custom" ? "Custom summary instructions" : "Additional instructions · optional"}</Label>
+                  <Textarea
+                    id="new-summary-instructions"
+                    rows={3}
+                    maxLength={4000}
+                    value={summaryCustomInstructions}
+                    onChange={(event) => setSummaryCustomInstructions(event.target.value)}
+                    placeholder={summaryStyle === "custom" ? "Example: Focus on the technical explanation, compare the approaches, and end with a practical checklist." : "Example: Focus on the technical sections and skip the introduction."}
+                  />
+                  <p>{summaryCustomInstructions.length.toLocaleString()} / 4,000 characters</p>
                 </div>
                 <div className={"sonic-speaker-option " + (!health?.diarization_configured ? "is-unavailable" : "")}><div><Label htmlFor="speaker-switch">Identify speakers</Label><p>{health?.diarization_configured ? "Label Speaker 1, Speaker 2, and others." : "Requires a Hugging Face token in backend/.env."}</p></div><Switch id="speaker-switch" checked={diarize} disabled={!health?.diarization_configured} onCheckedChange={(checked) => { setDiarizeTouched(true); setDiarize(checked); }} /></div>
               </details>
