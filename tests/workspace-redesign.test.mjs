@@ -65,3 +65,26 @@ test("speaker detection respects backend capability", async () => {
   assert.ok(source.includes("Speaker identification was skipped: Speaker identification needs HF_TOKEN"));
   assert.ok(source.includes("Requested · HF token unavailable"));
 });
+
+
+test("media URL input auto-detects an explicit supported-site allowlist", async () => {
+  const source = await readFile(path.join(root, "app", "sonicbrief.tsx"), "utf8");
+  const config = await readFile(path.join(root, "backend", "config.py"), "utf8");
+  const pipeline = await readFile(path.join(root, "backend", "pipeline.py"), "utf8");
+  const app = await readFile(path.join(root, "backend", "app.py"), "utf8");
+
+  assert.ok(source.includes('type InputSource = "url" | "upload"'));
+  assert.ok(source.includes('TabsTrigger value="url"'));
+  assert.ok(source.includes("Media URL"));
+  assert.ok(source.includes("YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, or Twitch"));
+  assert.ok(!source.includes('TabsTrigger value="youtube"'));
+  assert.ok(!source.includes('TabsTrigger value="bilibili"'));
+
+  for (const domain of ["youtube.com", "bilibili.com", "vimeo.com", "tiktok.com", "x.com", "twitter.com", "soundcloud.com", "twitch.tv"]) {
+    assert.ok(config.includes('"' + domain + '"'));
+  }
+  assert.match(pipeline, /host == domain or host\.endswith\("\." \+ domain\)/);
+  assert.match(pipeline, /Supported media links: YouTube, Bilibili, Vimeo, TikTok, X\/Twitter, SoundCloud, and Twitch/);
+  assert.match(app, /pipeline\.source_label\(source_type\)/);
+  assert.doesNotMatch(pipeline, /Only YouTube and Bilibili links are supported/);
+});
