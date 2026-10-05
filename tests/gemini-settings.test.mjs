@@ -15,6 +15,9 @@ test("Gemini settings load model choices dynamically", async () => {
   assert.match(source, /Refresh models/);
   assert.match(source, /models\.map/);
   assert.match(source, /position="popper"/);
+  assert.match(source, /createPortal/);
+  assert.match(source, /document\.body/);
+  assert.match(source, /sonic-settings-model-detail/);
   assert.match(source, /Test connection/);
   assert.match(source, /Save changes/);
   assert.doesNotMatch(source, /FALLBACK_MODELS/);
