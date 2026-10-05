@@ -561,6 +561,8 @@ def run_job(
     model_name: str, language: str, diarize: bool,
     summary_language: str, summary_style: str,
     summary_custom_instructions: str = "",
+    generate_summary: bool = False,
+    allow_gemini_fallback: bool = False,
 ) -> None:
     try:
         check_cancelled(job_id)
@@ -609,17 +611,23 @@ def run_job(
                 check_cancelled(job_id)
                 result = local_transcribe(normalized_path, model_name, language, report_transcription)
             except Exception as local_error:
+                if not allow_gemini_fallback:
+                    raise RuntimeError(f"Local transcription failed: {local_error}") from local_error
                 if not gemini_settings.is_configured():
-                    raise RuntimeError(f"Local transcription failed and Gemini fallback is unavailable: {local_error}") from local_error
+                    raise RuntimeError(
+                        f"Local transcription failed and optional Gemini fallback is not configured: {local_error}"
+                    ) from local_error
                 storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
                 result = gemini_transcribe(normalized_path, language)
             else:
                 if transcript_needs_fallback(result):
-                    if gemini_settings.is_configured():
+                    if allow_gemini_fallback and gemini_settings.is_configured():
                         storage.add_warning(job_id, "Local transcription quality was low, so Gemini fallback was used.")
                         result = gemini_transcribe(normalized_path, language)
+                    elif allow_gemini_fallback:
+                        storage.add_warning(job_id, "Local transcription confidence was low; optional Gemini fallback is not configured.")
                     else:
-                        storage.add_warning(job_id, "Local transcription confidence was low; Gemini fallback is not configured.")
+                        storage.add_warning(job_id, "Local transcription confidence was low; cloud fallback was not requested.")
 
             check_cancelled(job_id)
             segments = result["segments"]
@@ -636,13 +644,22 @@ def run_job(
                     storage.add_warning(job_id, f"Speaker identification was skipped: {exc}")
 
             check_cancelled(job_id)
-            storage.update_job(job_id, progress=84, stage="summarize")
-            try:
-                summary = make_summary(segments, summary_language, summary_style, summary_custom_instructions)
-                check_cancelled(job_id)
-                storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
-            except Exception as exc:
-                storage.add_warning(job_id, f"Summary was not generated: {exc}")
+            if generate_summary:
+                storage.update_job(job_id, progress=84, stage="summarize")
+                try:
+                    summary = make_summary(segments, summary_language, summary_style, summary_custom_instructions)
+                    check_cancelled(job_id)
+                    storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
+                except Exception as exc:
+                    storage.add_warning(job_id, f"Summary was not generated: {exc}")
+            else:
+                storage.update_job(
+                    job_id,
+                    progress=92,
+                    stage="finalize",
+                    stage_detail="Transcript ready · summary not requested",
+                    stage_progress=100,
+                )
 
             storage.update_job(job_id, status="completed", progress=100, stage="complete")
     except JobCancelled:
