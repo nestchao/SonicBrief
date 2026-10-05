@@ -1,10 +1,10 @@
 # SonicBrief
 
-SonicBrief is a localhost-only audio transcription and summarization workspace. It accepts public YouTube links, public Bilibili links, and local audio files. It transcribes with `faster-whisper` first, can fall back to Gemini when local quality is poor, adds optional speaker labels, and saves transcripts and summaries in SQLite.
+SonicBrief is a localhost-only audio transcription and summarization workspace. It accepts public media links from YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch, plus local audio/video files. It transcribes with `faster-whisper` first, can fall back to Gemini when local quality is poor, adds optional speaker labels, and saves transcripts and summaries in SQLite.
 
 ## What is included
 
-- YouTube, Bilibili, and audio-file input
+- Public media URLs from YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch
 - Local `faster-whisper` transcription with timestamps
 - Whisper model choices: Turbo, Large v3, Distil-Large v3, and Small
 - Media duration limit defaults to 12 hours and can be changed with `MAX_MEDIA_HOURS` in `backend/.env`
@@ -29,6 +29,8 @@ Requirements:
 - FFmpeg and FFprobe available in `PATH`
 
 Run `setup.bat` once. It creates a Python virtual environment, installs the base transcription dependencies, installs the frontend dependencies, and creates `backend/.env`.
+
+For URL jobs, SonicBrief detects the supported site automatically and downloads public media through `yt-dlp`. Site availability can change when providers update playback or anti-bot rules; private/login-only media is not guaranteed to work.
 
 Double-click `start.bat`. On first launch, open **Gemini Settings** and paste your own Google AI Studio API key. SonicBrief asks Google's Gemini Models API for the models available to that key, keeps Gemini models that support `generateContent`, filters out specialized transcription, TTS, image, Live/audio, embedding, Omni, custom-tools, robotics, computer-use, and research variants, and fills the model dropdown dynamically. This avoids shipping a short hardcoded model list that can become stale.
 
