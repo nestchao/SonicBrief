@@ -381,7 +381,7 @@ export function SonicBriefApp() {
           <div className="sonic-workspace-empty">
             <AudioLines />
             <h1>Start your first transcription</h1>
-            <p>Add a YouTube or Bilibili link, or upload local media. SonicBrief will keep the transcript, summary, and history together.</p>
+            <p>Add a supported public media link or upload local media. SonicBrief will keep the transcript, summary, and history together.</p>
             <Button size="lg" onClick={() => setNewTaskOpen(true)}>New transcription</Button>
           </div>
         ) : (
