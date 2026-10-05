@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 import re
 import tempfile
-from typing import Any
-
 import config
 
 _API_KEY_ENV = "GEMINI_API_KEY"
@@ -100,6 +98,8 @@ def list_gemini_models(api_key: str | None = None) -> list[dict[str, str]]:
         description = str(getattr(item, "description", "") or "").strip()
         if not description:
             description = "Available to this API key · supports generateContent"
+        elif len(description) > 180:
+            description = description[:177].rstrip() + "…"
 
         options[model_id] = {
             "id": model_id,
