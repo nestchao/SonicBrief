@@ -270,7 +270,7 @@ export function SonicBriefApp() {
     setLoading(true);
     try {
       const createRequest = async (file?: File, sourceUrl?: string) => {
-        const body = new FormData(); body.set("model_name", model); body.set("language", language); body.set("diarize", String(diarize)); body.set("summary_language", "zh-CN"); body.set("summary_style", summaryStyle); body.set("summary_custom_instructions", summaryCustomInstructions.trim());
+        const body = new FormData(); body.set("model_name", model); body.set("language", language); body.set("diarize", String(diarize)); body.set("generate_summary", "true"); body.set("allow_gemini_fallback", "true"); body.set("summary_language", "zh-CN"); body.set("summary_style", summaryStyle); body.set("summary_custom_instructions", summaryCustomInstructions.trim());
         let endpoint = `${API_BASE}/api/jobs/upload`; if (file) body.set("file", file); else { endpoint = `${API_BASE}/api/jobs/url`; body.set("url", sourceUrl ?? ""); }
         const response = await fetch(endpoint, { method: "POST", body }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.detail ?? "Unable to create this task."); return data as Job;
       };
