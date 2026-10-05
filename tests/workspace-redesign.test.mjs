@@ -52,3 +52,15 @@ test("summary prompt requests structured Markdown", async () => {
   assert.match(pipeline, /\*\*bold\*\*/);
   assert.match(pipeline, /\[123\.4s\]/);
 });
+
+
+test("speaker detection respects backend capability", async () => {
+  const source = await readFile(path.join(root, "app", "sonicbrief.tsx"), "utf8");
+
+  assert.match(source, /useState\(false\).*diarizeTouched/);
+  assert.match(source, /health\?\.diarization_configured/);
+  assert.match(source, /disabled=!\{?health\?\.diarization_configured/);
+  assert.match(source, /Requires a Hugging Face token in backend\/\.env\./);
+  assert.match(source, /Speaker identification was skipped: Speaker identification needs HF_TOKEN/);
+  assert.match(source, /Requested · HF token unavailable/);
+});
