@@ -17,8 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GeminiSettings } from "@/app/gemini-settings";
 
-type InputSource = "youtube" | "bilibili" | "upload";
-type JobSource = "youtube" | "bilibili" | "upload" | "audio_upload" | "video_upload";
+type InputSource = "url" | "upload";
+type JobSource = "youtube" | "bilibili" | "vimeo" | "tiktok" | "twitter" | "soundcloud" | "twitch" | "upload" | "audio_upload" | "video_upload";
 type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 type TranscriptSegment = { start: number; end: number; text: string; speaker?: string | null };
 type Job = {
@@ -57,16 +57,25 @@ function formatDate(value: string) {
 
 function SourceIcon({ source }: { source: JobSource }) {
   if (source === "youtube") return <CirclePlay aria-hidden="true" />;
-  if (source === "bilibili") return <Video aria-hidden="true" />;
+  if (["bilibili", "vimeo", "tiktok", "twitter", "twitch"].includes(source)) return <Video aria-hidden="true" />;
   if (source === "video_upload") return <FileVideo aria-hidden="true" />;
   return <FileAudio aria-hidden="true" />;
 }
 
 function sourceLabel(source: JobSource) {
-  if (source === "youtube") return "YouTube";
-  if (source === "bilibili") return "Bilibili";
-  if (source === "video_upload") return "Video upload";
-  return "Audio upload";
+  const labels: Partial<Record<JobSource, string>> = {
+    youtube: "YouTube",
+    bilibili: "Bilibili",
+    vimeo: "Vimeo",
+    tiktok: "TikTok",
+    twitter: "X / Twitter",
+    soundcloud: "SoundCloud",
+    twitch: "Twitch",
+    video_upload: "Video upload",
+    audio_upload: "Audio upload",
+    upload: "Media upload",
+  };
+  return labels[source] ?? "Online media";
 }
 
 function renderInlineMarkdown(text: string): ReactNode[] {
@@ -156,7 +165,7 @@ function SummaryMarkdown({ content }: { content: string }) {
 }
 
 export function SonicBriefApp() {
-  const [source, setSource] = useState<InputSource>("youtube");
+  const [source, setSource] = useState<InputSource>("url");
   const [url, setUrl] = useState(""); const [files, setFiles] = useState<File[]>([]); const [language, setLanguage] = useState("auto"); const [model, setModel] = useState("turbo"); const [diarize, setDiarize] = useState(false); const [diarizeTouched, setDiarizeTouched] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]); const [activeJob, setActiveJob] = useState<Job | null>(null); const [health, setHealth] = useState<Health | null>(null); const [loading, setLoading] = useState(false); const [message, setMessage] = useState<string | null>(null); const [messageType, setMessageType] = useState<"error" | "success">("error"); const [transcriptCopied, setTranscriptCopied] = useState(false); const [dragging, setDragging] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -213,11 +222,11 @@ export function SonicBriefApp() {
   async function submit(event: FormEvent) {
     event.preventDefault(); setMessageType("error"); setMessage(null);
     if (source === "upload" && !files.length) { setMessage("Choose at least one audio or video file."); return; }
-    if (source !== "upload" && !url.trim()) { setMessage(`Paste at least one ${source === "youtube" ? "YouTube" : "Bilibili"} link.`); return; }
+    if (source === "url" && !url.trim()) { setMessage("Paste at least one supported media link."); return; }
     const extractUrl = (value: string) => { const match = value.match(/https?:\/\/[^\s<>]+/i); return match ? match[0].replace(/[，。！？、）】》]+$/u, "") : ""; };
     const urls = source === "upload" ? [] : [...new Set(url.split(/\r?\n/).map(extractUrl).filter(Boolean))].slice(0, 20);
-    if (source !== "upload" && !urls.length) { setMessage("Paste at least one valid URL."); return; }
-    if (source !== "upload" && url.split(/\r?\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
+    if (source === "url" && !urls.length) { setMessage("Paste at least one valid media URL."); return; }
+    if (source === "url" && url.split(/\r?\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
     setLoading(true);
     try {
       const createRequest = async (file?: File, sourceUrl?: string) => {
@@ -468,9 +477,12 @@ export function SonicBriefApp() {
             </header>
             <form className="sonic-new-task-form" onSubmit={submit}>
               <Tabs value={source} onValueChange={(value) => { setSource(value as InputSource); setMessage(null); }}>
-                <TabsList className="sonic-tabs"><TabsTrigger value="youtube"><CirclePlay />YouTube</TabsTrigger><TabsTrigger value="bilibili"><Video />Bilibili</TabsTrigger><TabsTrigger value="upload"><UploadCloud />Media files</TabsTrigger></TabsList>
-                <TabsContent value="youtube" className="sonic-source-panel"><Label htmlFor="youtube-url">YouTube link</Label><Textarea id="youtube-url" rows={4} placeholder={"Paste one YouTube link per line\nhttps://www.youtube.com/watch?v=..."} value={url} onChange={(event) => setUrl(event.target.value)} /></TabsContent>
-                <TabsContent value="bilibili" className="sonic-source-panel"><Label htmlFor="bilibili-url">Bilibili link</Label><Textarea id="bilibili-url" rows={4} placeholder={"Paste one Bilibili link per line\nhttps://www.bilibili.com/video/BV..."} value={url} onChange={(event) => setUrl(event.target.value)} /></TabsContent>
+                <TabsList className="sonic-tabs sonic-source-tabs"><TabsTrigger value="url"><Video />Media URL</TabsTrigger><TabsTrigger value="upload"><UploadCloud />Media files</TabsTrigger></TabsList>
+                <TabsContent value="url" className="sonic-source-panel">
+                  <Label htmlFor="media-url">Media URL</Label>
+                  <Textarea id="media-url" rows={4} placeholder={"Paste one public media link per line\nYouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, or Twitch"} value={url} onChange={(event) => setUrl(event.target.value)} />
+                  <p className="sonic-source-help">SonicBrief detects the site automatically. Public links only; availability can vary when a site changes its playback rules.</p>
+                </TabsContent>
                 <TabsContent value="upload" className="sonic-source-panel">
                   <input ref={fileInput} className="sr-only" type="file" multiple accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.mp4,.mov,.mkv,.webm,.avi,.m4v,.mpeg,.mpg,.wmv" onChange={(event) => chooseFiles(event.target.files)} />
                   <button className={"sonic-drop-zone " + (dragging ? "is-dragging" : "")} type="button" onClick={() => fileInput.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFiles(event.dataTransfer.files); }}>
