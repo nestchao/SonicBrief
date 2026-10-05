@@ -1612,3 +1612,212 @@ button, input { font: inherit; }
     border-radius: .95rem .95rem .5rem .5rem;
   }
 }
+
+
+/* Refined Gemini settings dialog */
+.sonic-settings-backdrop {
+  padding: clamp(1rem, 3vw, 2.4rem);
+}
+
+.sonic-settings-dialog {
+  width: min(100%, 46rem);
+  max-height: min(88vh, 50rem);
+  border-radius: 1.15rem;
+  box-shadow: 0 34px 100px rgb(16 19 28 / .28);
+}
+
+.sonic-settings-header {
+  align-items: flex-start;
+  padding: 1.55rem 1.65rem 1.25rem;
+}
+
+.sonic-settings-header h2 {
+  margin-top: .22rem;
+  font-size: 1.32rem;
+}
+
+.sonic-settings-header p:last-child {
+  max-width: 34rem;
+  font-size: .78rem;
+}
+
+.sonic-settings-body {
+  scrollbar-gutter: stable;
+  padding: 1.2rem 1.55rem 0;
+}
+
+.sonic-settings-connection {
+  margin-bottom: 1.05rem;
+  padding: .85rem 1rem;
+}
+
+.sonic-settings-section {
+  padding: 1.05rem 1.1rem;
+  border-radius: .85rem;
+  background: #fdfdff;
+}
+
+.sonic-settings-section-heading {
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+
+.sonic-settings-section-heading > div {
+  min-width: 0;
+}
+
+.sonic-settings-section-heading p {
+  max-width: 34rem;
+  font-size: .69rem;
+}
+
+.sonic-settings-refresh-models {
+  min-width: 7.7rem;
+  height: 2.1rem;
+  margin-top: -.12rem;
+  justify-content: center;
+  border: 1px solid #e4e0fb;
+  border-radius: .55rem;
+  background: #f7f5ff;
+}
+
+.sonic-settings-refresh-models:hover {
+  background: #efecff;
+}
+
+.sonic-settings-key-input,
+.sonic-settings-model-trigger {
+  height: 2.95rem;
+}
+
+.sonic-settings-model-menu {
+  width: var(--radix-select-trigger-width);
+  max-height: min(22rem, 54vh);
+}
+
+.sonic-settings-model-detail {
+  display: grid;
+  grid-template-columns: minmax(12rem, .75fr) minmax(0, 1.25fr);
+  align-items: start;
+  gap: 1rem;
+  margin-top: .7rem;
+  padding: .75rem .85rem;
+}
+
+.sonic-settings-model-detail > div {
+  min-width: 0;
+}
+
+.sonic-settings-model-detail strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #3f4657;
+  font-size: .72rem;
+}
+
+.sonic-settings-model-detail code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: .24rem;
+  color: #725fd3;
+  font-family: var(--font-mono);
+  font-size: .61rem;
+  line-height: 1.4;
+}
+
+.sonic-settings-model-detail span {
+  min-width: 0;
+  text-align: left;
+  color: #747c8e;
+  font-size: .66rem;
+  line-height: 1.5;
+}
+
+.sonic-settings-message {
+  margin: .9rem 0 0;
+}
+
+.sonic-settings-footer {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  margin: 1.05rem -1.55rem 0;
+  padding: 1rem 1.55rem 1.2rem;
+  border-top: 1px solid #e7eaf1;
+  background: rgb(255 255 255 / .96);
+  box-shadow: 0 -12px 28px rgb(36 43 68 / .045);
+  backdrop-filter: blur(10px);
+}
+
+.sonic-settings-actions button {
+  min-width: 8.5rem;
+}
+
+@media (max-width: 760px) {
+  .sonic-settings-backdrop {
+    align-items: end;
+    padding: .55rem;
+  }
+
+  .sonic-settings-dialog {
+    width: 100%;
+    max-height: 94vh;
+    border-radius: 1rem 1rem .65rem .65rem;
+  }
+
+  .sonic-settings-header {
+    padding: 1.15rem 1.1rem .95rem;
+  }
+
+  .sonic-settings-header h2 {
+    font-size: 1.15rem;
+  }
+
+  .sonic-settings-body {
+    padding: 1rem 1.05rem 0;
+  }
+
+  .sonic-settings-section {
+    padding: .9rem;
+  }
+
+  .sonic-settings-section-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sonic-settings-refresh-models {
+    width: fit-content;
+    min-width: 0;
+    margin-top: 0;
+  }
+
+  .sonic-settings-model-detail {
+    grid-template-columns: 1fr;
+    gap: .45rem;
+  }
+
+  .sonic-settings-footer {
+    margin-inline: -1.05rem;
+    padding: .9rem 1.05rem 1rem;
+  }
+
+  .sonic-settings-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sonic-settings-actions button {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .sonic-settings-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .sonic-settings-footer {
+    flex-direction: column-reverse;
+  }
+}
