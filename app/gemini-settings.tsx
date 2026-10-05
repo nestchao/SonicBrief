@@ -52,14 +52,6 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
   const needsModelRefresh = Boolean(apiKey.trim()) && models.length === 0;
 
   async function loadModels(keyOverride?: string, quiet = false) {
-    if (!keyOverride?.trim() && !configured) {
-      if (!quiet) {
-        setMessageType("error");
-        setMessage("Enter your Google AI Studio API key before loading models.");
-      }
-      return;
-    }
-
     setLoadingModels(true);
     if (!quiet) setMessage(null);
     try {
@@ -319,7 +311,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                 </Select>
 
                 <div className="sonic-settings-model-detail">
-                  <strong>{selectedModel?.label ?? model || "No model loaded"}</strong>
+                  <strong>{(selectedModel?.label ?? model) || "No model loaded"}</strong>
                   <span>
                     {loadingModels
                       ? "Checking the models available to this API key…"
