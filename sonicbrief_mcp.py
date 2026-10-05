@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import mimetypes
 import os
 import subprocess
@@ -515,4 +516,15 @@ def delete_job(job_id: str) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    if "--self-test" in sys.argv:
+        health = _api_request("GET", "/api/health")
+        print(json.dumps({
+            "ok": bool(health.get("ok")),
+            "backend_started_by_mcp": _BACKEND_STARTED_BY_MCP,
+            "ffmpeg_available": health.get("ffmpeg_available"),
+            "cuda_available": health.get("cuda_available"),
+            "device": health.get("device"),
+            "gemini_configured": health.get("gemini_configured"),
+        }, ensure_ascii=False))
+    else:
+        mcp.run()
