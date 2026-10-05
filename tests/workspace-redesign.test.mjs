@@ -139,3 +139,37 @@ test("Bilibili downloads retry interrupted transfers and report clean errors", a
   assert.match(pipeline, /Media download was interrupted before the source finished sending the file/);
   assert.match(pipeline, /_ANSI_ESCAPE_PATTERN/);
 });
+
+
+test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", async () => {
+  const mcpServer = await readFile(path.join(root, "sonicbrief_mcp.py"), "utf8");
+  const requirements = await readFile(path.join(root, "backend", "requirements.txt"), "utf8");
+
+  assert.match(mcpServer, /from mcp\.server import MCPServer/);
+  assert.match(mcpServer, /MCPServer\("SonicBrief"\)/);
+  assert.match(mcpServer, /SONICBRIEF_API_BASE/);
+  assert.match(mcpServer, /127\.0\.0\.1:7860/);
+  assert.match(mcpServer, /processing_location": "local computer"/);
+  assert.match(mcpServer, /whisper_location": "local SonicBrief backend"/);
+  assert.doesNotMatch(mcpServer, /from faster_whisper|WhisperModel/);
+
+  for (const tool of [
+    "submit_media_url",
+    "submit_media_urls",
+    "submit_local_file",
+    "get_job",
+    "list_jobs",
+    "search_jobs",
+    "get_summary",
+    "get_transcript",
+    "regenerate_summary",
+    "cancel_job",
+    "delete_job",
+  ]) {
+    assert.ok(mcpServer.includes("def " + tool + "("));
+  }
+
+  assert.match(mcpServer, /mcp\.run\(\)/);
+  assert.match(requirements, /mcp>=2,<3/);
+  assert.match(requirements, /httpx>=0\.28,<1/);
+});
