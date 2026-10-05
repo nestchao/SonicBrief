@@ -5,3 +5,5 @@ python-dotenv==1.1.1
 faster-whisper==1.2.0
 yt-dlp[default]>=2025.1.1
 google-genai>=1.33.0
+mcp>=2,<3
+httpx>=0.28,<1
