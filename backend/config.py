@@ -38,6 +38,7 @@ ALLOWED_MODELS = {
 }
 ALLOWED_EXTENSIONS = {
     ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+    ".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v",
 }
 ALLOWED_URL_SOURCES = {
     "youtube.com": "youtube",
