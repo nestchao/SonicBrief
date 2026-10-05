@@ -28,7 +28,7 @@ type Job = {
   status: JobStatus; progress: number; stage: string; created_at: string; updated_at: string;
   duration?: number | null; language?: string | null; engine?: string | null;
   error?: string | null; warnings?: string[]; transcript?: TranscriptSegment[]; summary?: string | null;
-  stage_detail?: string | null; stage_progress?: number; processed_duration?: number | null; model_name?: string | null;
+  stage_detail?: string | null; stage_progress?: number; processed_duration?: number | null; model_name?: string | null; diarization_enabled?: boolean;
 };
 type Health = {
   ok: boolean; cuda_available: boolean; device: string;
