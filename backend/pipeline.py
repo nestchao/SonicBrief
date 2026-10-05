@@ -411,7 +411,64 @@ def add_speakers(path: Path, segments: list[dict[str, Any]]) -> list[dict[str, A
     return segments
 
 
-def make_summary(segments: list[dict[str, Any]], language: str, style: str) -> str:
+SUMMARY_STYLE_INSTRUCTIONS = {
+    "brief": (
+        "Create a concise summary for quick understanding. Give a short overview, then 3-6 key points. "
+        "Prefer only the most important information and avoid repetition."
+    ),
+    "standard": (
+        "Create a balanced summary with a clear overview, the main ideas, important supporting details, "
+        "and a concise conclusion. Include timestamps for the most useful points."
+    ),
+    "detailed": (
+        "Create a thorough summary that captures the main argument, supporting details, examples, explanations, "
+        "important context, and conclusions. Use timestamps throughout when they help the reader return to the source."
+    ),
+    "study_notes": (
+        "Turn the transcript into structured study notes. Emphasize key concepts, definitions, examples, important facts, "
+        "relationships between ideas, and review-worthy takeaways."
+    ),
+    "key_points": (
+        "Focus on the most important takeaways, decisions, recommendations, action items, conclusions, and memorable facts. "
+        "Prefer concise bullets and useful timestamps."
+    ),
+    "custom": (
+        "Follow the user's custom summary instructions while still obeying the accuracy, Markdown, and timestamp rules below."
+    ),
+}
+
+SUMMARY_STYLE_LABELS = {
+    "brief": "Brief",
+    "standard": "Standard",
+    "detailed": "Detailed",
+    "study_notes": "Study Notes",
+    "key_points": "Key Points",
+    "custom": "Custom",
+}
+
+
+def normalize_summary_style(style: str) -> str:
+    normalized = (style or "standard").strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized not in SUMMARY_STYLE_INSTRUCTIONS:
+        raise ValueError(
+            "Summary style must be brief, standard, detailed, study_notes, key_points, or custom."
+        )
+    return normalized
+
+
+def normalize_summary_custom_instructions(value: str | None) -> str:
+    instructions = (value or "").strip()
+    if len(instructions) > 4000:
+        raise ValueError("Custom summary instructions must be 4,000 characters or fewer.")
+    return instructions
+
+
+def make_summary(
+    segments: list[dict[str, Any]],
+    language: str,
+    style: str,
+    custom_instructions: str = "",
+) -> str:
     if not gemini_settings.is_configured():
         raise RuntimeError("Add your Gemini API key in Gemini Settings to create summaries.")
     try:
@@ -423,15 +480,31 @@ def make_summary(segments: list[dict[str, Any]], language: str, style: str) -> s
     )
     if len(transcript) > 350_000:
         transcript = transcript[:350_000]
+    style_id = normalize_summary_style(style)
+    custom_instructions = normalize_summary_custom_instructions(custom_instructions)
+    if style_id == "custom" and not custom_instructions:
+        raise ValueError("Custom summary style requires custom instructions.")
+
+    style_instruction = SUMMARY_STYLE_INSTRUCTIONS[style_id]
+    custom_block = (
+        f"\nUSER CUSTOM INSTRUCTIONS:\n{custom_instructions}\n"
+        if custom_instructions
+        else ""
+    )
     prompt = f"""
 You are summarizing a timestamped transcript for personal study.
 Write the summary in {'Simplified Chinese' if language == 'zh-CN' else language}.
-Style: {style}. Target length: 1,000–1,500 Chinese characters when the content is long enough.
+
+SUMMARY STYLE: {SUMMARY_STYLE_LABELS[style_id]}
+{style_instruction}
+{custom_block}
 Return clean Markdown only. Do not use Markdown code fences.
 Use ## headings for major sections, blank lines between blocks, numbered or bullet lists where they improve readability, and **bold** for important terms.
-Use these sections when relevant: 核心概述、主要观点、重要细节、结论与行动项.
-Preserve technical English terms in parentheses after their Chinese term.
-Do not invent facts. When citing an important point, include its nearest timestamp in the form [123.4s].
+Choose section headings that fit the selected style and source content.
+Preserve technical English terms in parentheses after their Chinese term when useful.
+Do not invent facts, claims, names, or details that are not supported by the transcript.
+When citing an important point, include its nearest timestamp in the form [123.4s].
+Avoid unnecessary repetition.
 
 TRANSCRIPT:
 {transcript}
@@ -448,6 +521,7 @@ def run_job(
     job_id: str, *, upload_path: str | None, source_url: str | None,
     model_name: str, language: str, diarize: bool,
     summary_language: str, summary_style: str,
+    summary_custom_instructions: str = "",
 ) -> None:
     try:
         check_cancelled(job_id)
@@ -525,7 +599,7 @@ def run_job(
             check_cancelled(job_id)
             storage.update_job(job_id, progress=84, stage="summarize")
             try:
-                summary = make_summary(segments, summary_language, summary_style)
+                summary = make_summary(segments, summary_language, summary_style, summary_custom_instructions)
                 check_cancelled(job_id)
                 storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
             except Exception as exc:
