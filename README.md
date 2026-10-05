@@ -27,16 +27,21 @@ Requirements:
 
 Run `setup.bat` once. It creates a Python virtual environment, installs the base transcription dependencies, installs the frontend dependencies, and creates `backend/.env`.
 
-Double-click `start.bat`. On first launch, open **Gemini Settings** and paste your own Google AI Studio API key. SonicBrief saves the key to the local `backend/.env` file on that computer; you do not need to edit the file manually.
+Double-click `start.bat`. On first launch, open **Gemini Settings**, paste your own Google AI Studio API key, and choose a Gemini model from the dropdown. SonicBrief saves the key and model preference to the local `backend/.env` file on that computer; you do not need to edit the file manually.
 
-You can also configure the Gemini model IDs in `backend/.env` if needed:
+The built-in model choices are:
+
+- **Gemini 3.8 Flash** — recommended default
+- **Gemini 3.5 Flash** — balanced speed and quality
+- **Gemini 3.5 Flash-Lite** — fastest and lowest-cost option
+
+You can also configure the shared model in `backend/.env` if needed:
 
 ```env
-GEMINI_TRANSCRIPTION_MODEL=gemini-3.5-flash-lite
-GEMINI_SUMMARY_MODEL=gemini-3.5-flash-lite
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
-Use a model ID that is currently available in your Google AI Studio account. The app still performs local transcription without Gemini, but summary generation and cloud fallback require the key.
+Legacy `GEMINI_TRANSCRIPTION_MODEL` and `GEMINI_SUMMARY_MODEL` overrides remain supported for existing installs. The app still performs local transcription without Gemini, but summary generation and cloud fallback require the key.
 
 Then double-click `start.bat`. It starts the API at `http://127.0.0.1:7860`, starts the web interface at `http://127.0.0.1:3000`, and opens the interface in your browser.
 
