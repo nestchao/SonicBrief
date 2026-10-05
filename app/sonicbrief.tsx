@@ -2,14 +2,12 @@
 
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AudioLines, Check, ChevronRight, CirclePlay, Clock3, FileAudio, FileText, FileVideo, MoreVertical,
+  AudioLines, Check, CirclePlay, FileAudio, FileText, FileVideo, MoreVertical,
   Languages, LoaderCircle, Mic2, MonitorDot, RefreshCw,
-  Copy, History, Pencil, RotateCcw, Search, Settings, Sparkles, Trash2, UploadCloud, Video, X,
+  Copy, History, Pencil, RotateCcw, Search, Sparkles, Trash2, UploadCloud, Video, X,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -171,7 +169,7 @@ export function SonicBriefApp() {
   const fileInput = useRef<HTMLInputElement>(null);
   const hasPendingJobs = jobs.some((job) => ["queued", "processing"].includes(job.status));
   const loadHealth = useCallback(async () => { try { const response = await fetch(`${API_BASE}/api/health`); if (!response.ok) throw new Error("Backend unavailable"); setHealth(await response.json()); } catch { setHealth(null); } }, []);
-  const loadJobs = useCallback(async () => { try { const response = await fetch(`${API_BASE}/api/jobs`); if (!response.ok) return; const data = (await response.json()) as Job[]; setJobs(data); setActiveJob((current) => current ?? data[0] ?? null); } catch {} }, []);
+  const loadJobs = useCallback(async () => { try { const response = await fetch(`${API_BASE}/api/jobs?limit=200`); if (!response.ok) return; const data = (await response.json()) as Job[]; setJobs(data); setActiveJob((current) => current ?? data[0] ?? null); } catch {} }, []);
   const refreshJob = useCallback(async (jobId: string) => { try { const response = await fetch(`${API_BASE}/api/jobs/${jobId}`); if (!response.ok) return null; const job = (await response.json()) as Job; setActiveJob(job); setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)].sort((a, b) => b.updated_at.localeCompare(a.updated_at))); return job; } catch { return null; } }, []);
   useEffect(() => { void loadHealth(); void loadJobs(); }, [loadHealth, loadJobs]);
   useEffect(() => { if (health) return; const timer = window.setInterval(() => void loadHealth(), 3000); return () => window.clearInterval(timer); }, [health, loadHealth]);
