@@ -107,6 +107,26 @@ def get_health() -> dict[str, Any]:
     }
 
 
+def _submit_media_url(
+    url: str,
+    language: str,
+    whisper_model: str,
+    summary_style: str,
+    summary_instructions: str,
+    summary_language: str,
+    identify_speakers: bool,
+) -> dict[str, Any]:
+    payload = {
+        "url": url,
+        "language": language,
+        "model_name": whisper_model,
+        "diarize": str(identify_speakers).lower(),
+        **_summary_fields(summary_language, summary_style, summary_instructions),
+    }
+    job = _api_request("POST", "/api/jobs/url", data=payload)
+    return _job_overview(job)
+
+
 @mcp.tool()
 def submit_media_url(
     url: str,
@@ -118,15 +138,15 @@ def submit_media_url(
     identify_speakers: bool = False,
 ) -> dict[str, Any]:
     """Queue one supported public media URL for local download, Whisper transcription, and summary generation."""
-    payload = {
-        "url": url,
-        "language": language,
-        "model_name": whisper_model,
-        "diarize": str(identify_speakers).lower(),
-        **_summary_fields(summary_language, summary_style, summary_instructions),
-    }
-    job = _api_request("POST", "/api/jobs/url", data=payload)
-    return _job_overview(job)
+    return _submit_media_url(
+        url,
+        language,
+        whisper_model,
+        summary_style,
+        summary_instructions,
+        summary_language,
+        identify_speakers,
+    )
 
 
 @mcp.tool()
@@ -149,14 +169,14 @@ def submit_media_urls(
     queued: list[dict[str, Any]] = []
     for index, url in enumerate(cleaned, start=1):
         try:
-            job = submit_media_url(
-                url=url,
-                language=language,
-                whisper_model=whisper_model,
-                summary_style=summary_style,
-                summary_instructions=summary_instructions,
-                summary_language=summary_language,
-                identify_speakers=identify_speakers,
+            job = _submit_media_url(
+                url,
+                language,
+                whisper_model,
+                summary_style,
+                summary_instructions,
+                summary_language,
+                identify_speakers,
             )
             queued.append({"queue_position": index, "url": url, "job": job})
         except Exception as exc:
