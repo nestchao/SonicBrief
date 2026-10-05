@@ -9,11 +9,12 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 test("workspace redesign keeps summary Markdown semantics intact", async () => {
   const source = await readFile(path.join(root, "app", "sonicbrief.tsx"), "utf8");
 
-  assert.match(source, /content\.replace\(\/\\r\\n\?\/g, "\\n"\)\.trim\(\)\.split\("\\n"\)/);
-  assert.match(source, /\^\\s\*\(#{1,6}\)\\s\+\(\.\+\)\$/);
+  assert.ok(source.includes('content.replace(/\\r\\n?/g, "\\n").trim().split("\\n")'));
+  assert.ok(source.includes('line.match(/^(#{1,6})\\s+(.+)$/)'));
+  assert.ok(source.includes('current.match(/^\\d+[.)]\\s+(.+)$/)'));
   assert.match(source, /sonic-summary-heading/);
   assert.match(source, /sonic-timestamp-chip/);
-  assert.doesNotMatch(source, /split\("\\\\n"\)/);
+  assert.ok(!source.includes('split("\\\\n")'));
 });
 
 test("workspace includes searchable history, creator filters, and transcript copy", async () => {
@@ -27,6 +28,8 @@ test("workspace includes searchable history, creator filters, and transcript cop
   assert.match(source, /Copy entire transcript/);
   assert.match(source, /transcriptQuery/);
   assert.match(source, /\/api\/jobs\?limit=200/);
+  assert.ok(source.includes('.join("\\n")'));
+  assert.ok(source.includes('url.split(/\\r?\\n/)'));
 });
 
 test("backend persists creator metadata from downloaded media", async () => {
@@ -38,6 +41,7 @@ test("backend persists creator metadata from downloaded media", async () => {
   assert.match(storage, /"creator_name"/);
   assert.match(pipeline, /info\.get\("channel"\) or info\.get\("uploader"\) or info\.get\("uploader_id"\)/);
   assert.match(pipeline, /creator_name=metadata\.get\("creator_name"\)/);
+  assert.match(pipeline, /storage\.update_job\([\s\S]*?creator_name=metadata\.get\("creator_name"\)[\s\S]*?progress=18/);
 });
 
 test("summary prompt requests structured Markdown", async () => {
