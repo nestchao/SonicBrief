@@ -227,7 +227,7 @@ async def create_upload_job(
     filename = Path(file.filename or "recording").name
     suffix = Path(filename).suffix.lower()
     if suffix not in config.ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {suffix or 'unknown'}")
+        raise HTTPException(status_code=400, detail=f"Unsupported media type: {suffix or 'unknown'}")
 
     record = storage.create_job(
         title=filename, source_type="upload", source_url=None,
@@ -269,9 +269,12 @@ def create_url_job(
     summary_language: str = Form("zh-CN"),
     summary_style: str = Form("standard"),
     summary_custom_instructions: str = Form(""),
+    generate_summary: bool = Form(False),
+    allow_gemini_fallback: bool = Form(False),
 ) -> dict[str, object]:
     validate_options(model_name, language)
-    summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
+    if generate_summary:
+        summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
     try:
         source_type = pipeline.classify_url(url)
     except ValueError as exc:
