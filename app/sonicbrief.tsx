@@ -157,7 +157,7 @@ function SummaryMarkdown({ content }: { content: string }) {
 
 export function SonicBriefApp() {
   const [source, setSource] = useState<InputSource>("youtube");
-  const [url, setUrl] = useState(""); const [files, setFiles] = useState<File[]>([]); const [language, setLanguage] = useState("auto"); const [model, setModel] = useState("turbo"); const [diarize, setDiarize] = useState(true);
+  const [url, setUrl] = useState(""); const [files, setFiles] = useState<File[]>([]); const [language, setLanguage] = useState("auto"); const [model, setModel] = useState("turbo"); const [diarize, setDiarize] = useState(false); const [diarizeTouched, setDiarizeTouched] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]); const [activeJob, setActiveJob] = useState<Job | null>(null); const [health, setHealth] = useState<Health | null>(null); const [loading, setLoading] = useState(false); const [message, setMessage] = useState<string | null>(null); const [messageType, setMessageType] = useState<"error" | "success">("error"); const [transcriptCopied, setTranscriptCopied] = useState(false); const [dragging, setDragging] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -176,6 +176,10 @@ export function SonicBriefApp() {
   useEffect(() => { if (activeJob?.status === "completed" && activeJob.transcript === undefined) void refreshJob(activeJob.id); }, [activeJob?.id, activeJob?.status, activeJob?.transcript, refreshJob]);
   useEffect(() => { if (!activeJob || !["queued", "processing"].includes(activeJob.status)) return; const timer = window.setInterval(async () => { const job = await refreshJob(activeJob.id); if (job && ["completed", "failed", "cancelled"].includes(job.status)) window.clearInterval(timer); }, 1200); return () => window.clearInterval(timer); }, [activeJob?.id, activeJob?.status, refreshJob]);
   useEffect(() => { if (!hasPendingJobs) return; const timer = window.setInterval(() => void loadJobs(), 2000); return () => window.clearInterval(timer); }, [hasPendingJobs, loadJobs]);
+  useEffect(() => {
+    if (!health || diarizeTouched) return;
+    setDiarize(Boolean(health.diarization_configured));
+  }, [health?.diarization_configured, diarizeTouched]);
   useEffect(() => { setResultTab("summary"); setTranscriptQuery(""); setShowPipelineDetails(false); }, [activeJob?.id]);
 
   const creators = useMemo(() => [...new Set(jobs.map((job) => job.creator_name?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)), [jobs]);
@@ -195,6 +199,9 @@ export function SonicBriefApp() {
     return segments.filter((segment) => [segment.text, segment.speaker ?? "", formatTime(segment.start)].join(" ").toLowerCase().includes(query));
   }, [activeJob?.transcript, transcriptQuery]);
   const recentJobs = jobs.slice(0, 4);
+  const visibleWarnings = (activeJob?.warnings ?? []).filter(
+    (warning) => !warning.startsWith("Speaker identification was skipped: Speaker identification needs HF_TOKEN"),
+  );
 
   const currentStageIndex = useMemo(() => { const index = stages.findIndex((item) => item.key === activeJob?.stage); return index < 0 ? 0 : index; }, [activeJob?.stage]);
   const timestampedTranscript = useMemo(() => (activeJob?.transcript ?? []).map((segment) => `[${formatTime(segment.start)}]${segment.speaker ? ` ${segment.speaker}:` : ""} ${segment.text}`).join("\n"), [activeJob?.transcript]);
@@ -380,7 +387,7 @@ export function SonicBriefApp() {
               </section>
             ) : activeJob.status === "completed" ? (
               <>
-                {(activeJob.warnings?.length ?? 0) > 0 && <div className="sonic-warning" role="status">{activeJob.warnings?.map((warning) => <p key={warning}>{warning}</p>)}</div>}
+                {visibleWarnings.length > 0 && <div className="sonic-warning" role="status">{visibleWarnings.map((warning) => <p key={warning}>{warning}</p>)}</div>}
 
                 <section className="sonic-result-workspace">
                   <div className="sonic-result-tabs" role="tablist" aria-label="Job result views">
@@ -435,7 +442,7 @@ export function SonicBriefApp() {
                         <div><span>Transcript language</span><strong>{activeJob.language || "—"}</strong></div>
                         <div><span>Whisper model</span><strong>{activeJob.model_name || "—"}</strong></div>
                         <div><span>Processing engine</span><strong>{activeJob.engine || "—"}</strong></div>
-                        <div><span>Speaker detection</span><strong>{activeJob.diarization_enabled ? "Enabled" : "Disabled"}</strong></div>
+                        <div><span>Speaker detection</span><strong>{activeJob.diarization_enabled ? (health?.diarization_configured ? "Enabled" : "Requested · HF token unavailable") : "Disabled"}</strong></div>
                         <div><span>Created</span><strong>{formatDate(activeJob.created_at)}</strong></div>
                       </div>
                     </div>
@@ -479,7 +486,7 @@ export function SonicBriefApp() {
                   <div><Label htmlFor="whisper-model">Whisper model</Label><Select value={model} onValueChange={setModel}><SelectTrigger id="whisper-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="turbo">Turbo · recommended</SelectItem><SelectItem value="large-v3">Large v3 · best accuracy</SelectItem><SelectItem value="distil-large-v3">Distil large v3 · English</SelectItem><SelectItem value="small">Small · faster</SelectItem></SelectContent></Select></div>
                   <div><Label htmlFor="language">Transcript language</Label><Select value={language} onValueChange={setLanguage}><SelectTrigger id="language" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem><SelectItem value="zh">Chinese</SelectItem><SelectItem value="ms">Malay</SelectItem><SelectItem value="ja">Japanese</SelectItem><SelectItem value="ko">Korean</SelectItem><SelectItem value="id">Indonesian</SelectItem></SelectContent></Select></div>
                 </div>
-                <div className="sonic-speaker-option"><div><Label htmlFor="speaker-switch">Identify speakers</Label><p>Label Speaker 1, Speaker 2, and others.</p></div><Switch id="speaker-switch" checked={diarize} onCheckedChange={setDiarize} /></div>
+                <div className={"sonic-speaker-option " + (!health?.diarization_configured ? "is-unavailable" : "")}><div><Label htmlFor="speaker-switch">Identify speakers</Label><p>{health?.diarization_configured ? "Label Speaker 1, Speaker 2, and others." : "Requires a Hugging Face token in backend/.env."}</p></div><Switch id="speaker-switch" checked={diarize} disabled={!health?.diarization_configured} onCheckedChange={(checked) => { setDiarizeTouched(true); setDiarize(checked); }} /></div>
               </details>
 
               {message && <p className={messageType === "success" ? "sonic-message" : "sonic-error"}>{message}</p>}
