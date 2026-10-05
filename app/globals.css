@@ -397,6 +397,29 @@ button, input { font: inherit; }
   line-height: 1.45;
 }
 
+.sonic-settings-section-heading code {
+  padding: .04rem .18rem;
+  border-radius: .2rem;
+  color: #4b35bd;
+  background: #f0edff;
+  font-family: var(--font-mono);
+  font-size: .92em;
+}
+
+.sonic-settings-refresh-models {
+  height: 1.9rem;
+  flex-shrink: 0;
+  gap: .3rem;
+  padding: 0 .5rem;
+  color: #6352bd;
+  font-size: .66rem;
+}
+
+.sonic-settings-refresh-models svg {
+  width: .75rem;
+  height: .75rem;
+}
+
 .sonic-settings-key-row {
   position: relative;
   display: flex;
@@ -543,6 +566,8 @@ button, input { font: inherit; }
   }
   .sonic-settings-header { padding: 1.15rem 1.1rem .95rem; }
   .sonic-settings-body { padding: 1rem 1.1rem 1.15rem; }
+  .sonic-settings-section-heading { align-items: flex-start; }
+  .sonic-settings-refresh-models { margin-top: -.15rem; }
   .sonic-settings-footer { align-items: stretch; flex-direction: column-reverse; }
   .sonic-settings-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .sonic-settings-actions button { width: 100%; }
