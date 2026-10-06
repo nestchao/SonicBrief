@@ -153,7 +153,59 @@ For local files, the container must be able to see the file. Mount a read-only m
 
 and give `submit_local_file` a container path such as `/media/lecture.mp4`.
 
-The current Dockerfile is the portable CPU-safe image. Native SonicBrief can still use an NVIDIA GPU when CUDA is configured. A dedicated NVIDIA container image should be validated separately before treating Docker GPU acceleration as a supported zero-setup path.
+### NVIDIA GPU Docker image
+
+The default `Dockerfile` remains the portable CPU image. NVIDIA users can build the dedicated CUDA image:
+
+```powershell
+docker build -f Dockerfile.gpu -t sonicbrief-mcp:gpu .
+```
+
+The GPU image is based on NVIDIA CUDA 12.8 with cuDNN and runs the same SonicBrief MCP/backend code. Verify GPU passthrough and CTranslate2 detection:
+
+```powershell
+docker run --rm --gpus all `
+  -v sonicbrief-data:/data `
+  sonicbrief-mcp:gpu --self-test
+```
+
+A successful GPU setup should report:
+
+```json
+{
+  "ok": true,
+  "backend_started_by_mcp": true,
+  "ffmpeg_available": true,
+  "cuda_available": true,
+  "device": "NVIDIA GPU"
+}
+```
+
+Then configure an MCP host to launch the GPU image:
+
+```text
+command: docker
+args:
+  run
+  --rm
+  -i
+  --gpus
+  all
+  -v
+  sonicbrief-data:/data
+  sonicbrief-mcp:gpu
+```
+
+The CPU and GPU images share the same `sonicbrief-data` volume, so job history and downloaded model files persist when switching between them.
+
+Compose users can use the GPU profile:
+
+```powershell
+docker compose --profile gpu build sonicbrief-mcp-gpu
+docker compose --profile gpu run --rm -T sonicbrief-mcp-gpu --self-test
+```
+
+If `nvidia-smi` works inside an NVIDIA CUDA container but SonicBrief still reports `cuda_available: false`, the remaining issue is inside the CUDA/cuDNN/CTranslate2 runtime rather than Docker GPU passthrough.
 
 ### Native MCP installation
 
