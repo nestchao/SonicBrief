@@ -1,6 +1,35 @@
-# SonicBrief
+<p align="center">
+  <img src="public/favicon.svg" alt="SonicBrief logo" width="96" height="96">
+</p>
 
-SonicBrief is a localhost-only media-to-transcript workspace and MCP server. It accepts public media links from YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch, plus local audio/video files. Local `faster-whisper` transcription is the core service; Gemini fallback and built-in summaries are optional. Transcripts, optional summaries, and job history are stored in SQLite.
+<h1 align="center">SonicBrief</h1>
+
+<p align="center">
+  Local-first media transcription workspace + MCP server powered by faster-whisper.
+</p>
+
+<p align="center">
+  <strong>Local STT</strong> · <strong>NVIDIA GPU</strong> · <strong>Docker</strong> · <strong>MCP</strong> · <strong>Optional Gemini</strong>
+</p>
+
+SonicBrief turns public media links and local audio/video files into searchable, timestamped transcripts. It accepts YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch, and local files. Local `faster-whisper` transcription is the core service; Gemini fallback and built-in summaries are optional. Transcripts, optional summaries, and job history are stored in SQLite.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["Media URLs<br/>or local files"] --> B["SonicBrief FastAPI"]
+    B --> C["yt-dlp / FFmpeg"]
+    C --> D["faster-whisper"]
+    D --> E["Timestamped transcript"]
+    E --> F["SQLite history"]
+    F --> G["Web workspace"]
+    F --> H["MCP server"]
+    H --> I["AI agent"]
+    E -. optional .-> J["Gemini summary / fallback"]
+```
+
+> **Local-first by default:** MCP transcription uses local Whisper and does not require a Gemini API key. Cloud fallback and built-in Gemini summaries are opt-in.
 
 ## What is included
 
@@ -66,9 +95,9 @@ DIARIZATION_MODEL=pyannote/speaker-diarization-3.1
 
 Speaker diarization identifies anonymous voices such as `Speaker 1` and `Speaker 2`; it does not determine a person's real name.
 
-## GPU notes for the RTX 4050
+## NVIDIA GPU notes
 
-The API health check reports whether CTranslate2 can access CUDA. If it reports CPU mode even though NVIDIA CUDA is installed, the CTranslate2 wheel may expect a different CUDA runtime library version. Check the CTranslate2 compatibility notes for the installed version, or use CPU mode until the matching runtime libraries are installed. SonicBrief uses `int8_float16` on CUDA and `int8` on CPU.
+The API health check reports whether CTranslate2 can access CUDA. If it reports CPU mode even though NVIDIA CUDA is installed, the CTranslate2 wheel may expect a different CUDA runtime library version. Check the CTranslate2 compatibility notes for the installed version, or use CPU mode until the matching runtime libraries are installed. SonicBrief uses `float16` on CUDA and `int8` on CPU.
 
 ## Local data and privacy
 
