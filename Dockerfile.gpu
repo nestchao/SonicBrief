@@ -1,0 +1,39 @@
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    SONICBRIEF_DATA_DIR=/data \
+    HF_HOME=/data/huggingface \
+    XDG_CACHE_HOME=/data/cache \
+    SONICBRIEF_API_BASE=http://127.0.0.1:7860 \
+    SONICBRIEF_AUTO_START_BACKEND=1 \
+    PATH=/opt/venv/bin:$PATH
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-venv \
+        python3-pip \
+        ffmpeg \
+        libgomp1 \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/python -m pip install --upgrade pip
+
+WORKDIR /app
+
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN /opt/venv/bin/python -m pip install --no-cache-dir -r /app/backend/requirements.txt
+
+COPY backend /app/backend
+COPY sonicbrief_mcp.py /app/sonicbrief_mcp.py
+
+RUN mkdir -p /data
+
+VOLUME ["/data"]
+
+ENTRYPOINT ["/opt/venv/bin/python", "/app/sonicbrief_mcp.py"]
