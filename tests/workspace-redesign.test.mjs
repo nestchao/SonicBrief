@@ -189,6 +189,7 @@ test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", 
 test("Docker MCP image keeps secrets out and persists STT data and model cache", async () => {
   const mcpServer = await readFile(path.join(root, "sonicbrief_mcp.py"), "utf8");
   const dockerfile = await readFile(path.join(root, "Dockerfile"), "utf8");
+  const gpuDockerfile = await readFile(path.join(root, "Dockerfile.gpu"), "utf8");
   const dockerignore = await readFile(path.join(root, ".dockerignore"), "utf8");
   const compose = await readFile(path.join(root, "compose.yaml"), "utf8");
 
@@ -199,6 +200,11 @@ test("Docker MCP image keeps secrets out and persists STT data and model cache",
   assert.match(dockerfile, /HF_HOME=\/data\/huggingface/);
   assert.match(dockerfile, /VOLUME \["\/data"\]/);
   assert.match(dockerfile, /ENTRYPOINT \["python", "\/app\/sonicbrief_mcp\.py"\]/);
+  assert.match(gpuDockerfile, /FROM nvidia\/cuda:12\.8\.1-cudnn-runtime-ubuntu24\.04/);
+  assert.match(gpuDockerfile, /python3-venv/);
+  assert.match(gpuDockerfile, /ffmpeg/);
+  assert.match(gpuDockerfile, /VOLUME \["\/data"\]/);
+  assert.match(gpuDockerfile, /ENTRYPOINT \["\/opt\/venv\/bin\/python", "\/app\/sonicbrief_mcp\.py"\]/);
 
   assert.match(dockerignore, /backend\/\.env/);
   assert.match(dockerignore, /^data$/m);
@@ -207,5 +213,8 @@ test("Docker MCP image keeps secrets out and persists STT data and model cache",
   assert.match(compose, /sonicbrief-data:\/data/);
   assert.match(compose, /GEMINI_API_KEY/);
   assert.doesNotMatch(compose, /ports:/);
+  assert.match(compose, /sonicbrief-mcp-gpu:/);
+  assert.match(compose, /dockerfile: Dockerfile\.gpu/);
+  assert.match(compose, /gpus: all/);
   assert.match(mcpServer, /backend_started_by_mcp/);
 });
