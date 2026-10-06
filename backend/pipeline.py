@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import ctranslate2
 import yt_dlp
 from faster_whisper import WhisperModel
+from faster_whisper.audio import decode_audio
 
 import config
 import gemini_settings
@@ -69,6 +70,28 @@ def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 
 
+def probe_audio_decode() -> tuple[bool, str | None]:
+    """Decode a tiny generated WAV to catch faster-whisper/PyAV API incompatibilities."""
+    import wave
+
+    fd, temp_name = tempfile.mkstemp(prefix="sonicbrief-self-test-", suffix=".wav")
+    os.close(fd)
+    try:
+        with wave.open(temp_name, "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(16000)
+            handle.writeframes(b"\x00\x00" * 1600)
+        decoded = decode_audio(temp_name, sampling_rate=16000)
+        if len(decoded) == 0:
+            return False, "Decoded self-test audio was empty."
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+    finally:
+        Path(temp_name).unlink(missing_ok=True)
+
+
 def get_model(model_name: str) -> tuple[WhisperModel, str, str]:
     if model_name not in config.ALLOWED_MODELS:
         raise ValueError("Unsupported Whisper model.")
@@ -81,14 +104,32 @@ def get_model(model_name: str) -> tuple[WhisperModel, str, str]:
     return _MODEL_CACHE[cache_key], device, compute_type
 
 
+_SOURCE_LABELS = {
+    "youtube": "YouTube",
+    "bilibili": "Bilibili",
+    "vimeo": "Vimeo",
+    "tiktok": "TikTok",
+    "twitter": "X / Twitter",
+    "soundcloud": "SoundCloud",
+    "twitch": "Twitch",
+}
+
+
+def source_label(source_type: str) -> str:
+    return _SOURCE_LABELS.get(source_type, "Online media")
+
+
 def classify_url(url: str) -> str:
     parsed = urlparse(url.strip())
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("The link must start with http:// or https://.")
-    host = (parsed.hostname or "").lower()
-    if host not in config.ALLOWED_URL_HOSTS:
-        raise ValueError("Only YouTube and Bilibili links are supported.")
-    return "bilibili" if "bilibili" in host or host == "b23.tv" else "youtube"
+    host = (parsed.hostname or "").rstrip(".").lower()
+    for domain, source_type in config.ALLOWED_URL_SOURCES.items():
+        if host == domain or host.endswith("." + domain):
+            return source_type
+    raise ValueError(
+        "Supported media links: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch."
+    )
 
 
 def probe_duration(path: Path) -> float | None:
@@ -115,8 +156,23 @@ def normalize_audio(source: Path, destination: Path) -> None:
         raise RuntimeError(result.stderr.strip() or "FFmpeg could not decode this media file.")
 
 
+_ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _download_error_message(error: Exception) -> str:
+    message = _ANSI_ESCAPE_PATTERN.sub("", str(error)).strip()
+    lowered = message.lower()
+    if "bytes read" in lowered and "more expected" in lowered:
+        return (
+            "Media download was interrupted before the source finished sending the file. "
+            "SonicBrief retried the transfer, but the Bilibili/CDN connection still ended early. "
+            "Try the job again; if it repeats, update yt-dlp or try again later."
+        )
+    return f"Media download failed after retries: {message}"
+
+
 def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
-    classify_url(url)
+    source_type = classify_url(url)
     output_template = str(directory / "source.%(ext)s")
     options = {
         "format": "bestaudio/best",
@@ -125,23 +181,47 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
+        "continuedl": True,
+        "retries": 10,
+        "fragment_retries": 10,
+        "extractor_retries": 3,
+        "file_access_retries": 3,
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
         "socket_timeout": 30,
     }
-    try:
-        with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(url, download=True)
-    except yt_dlp.utils.DownloadError as exc:
-        raise RuntimeError(f"Media download failed: {exc}") from exc
+    if source_type == "bilibili":
+        # Bilibili media is commonly served from CDN endpoints that can close a
+        # long response early. Smaller ranged requests make recovery/resume more
+        # reliable without changing which video/audio stream yt-dlp selects.
+        options["http_chunk_size"] = 5 * 1024 * 1024
 
-    candidates = sorted(directory.glob("source.*"), key=lambda item: item.stat().st_mtime, reverse=True)
+    last_error: Exception | None = None
+    info: dict[str, Any] | None = None
+    for attempt in range(2):
+        try:
+            with yt_dlp.YoutubeDL(options) as downloader:
+                info = downloader.extract_info(url, download=True)
+            break
+        except yt_dlp.utils.DownloadError as exc:
+            last_error = exc
+            if attempt == 0:
+                time.sleep(1.0)
+
+    if info is None:
+        raise RuntimeError(_download_error_message(last_error or RuntimeError("Unknown download error."))) from last_error
+
+    candidates = sorted(
+        (item for item in directory.glob("source.*") if not item.name.endswith(".part")),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
     if not candidates:
-        raise RuntimeError("The downloader completed without producing an audio file.")
+        raise RuntimeError("The downloader completed without producing a complete audio file.")
     metadata = {
         "title": info.get("title") or "Online video",
         "duration": info.get("duration"),
         "webpage_url": info.get("webpage_url") or url,
-        "uploader": info.get("uploader"),
+        "creator_name": info.get("channel") or info.get("uploader") or info.get("uploader_id"),
     }
     duration = float(metadata["duration"] or 0)
     if duration > config.MAX_MEDIA_DURATION_SECONDS:
@@ -393,7 +473,64 @@ def add_speakers(path: Path, segments: list[dict[str, Any]]) -> list[dict[str, A
     return segments
 
 
-def make_summary(segments: list[dict[str, Any]], language: str, style: str) -> str:
+SUMMARY_STYLE_INSTRUCTIONS = {
+    "brief": (
+        "Create a concise summary for quick understanding. Give a short overview, then 3-6 key points. "
+        "Prefer only the most important information and avoid repetition."
+    ),
+    "standard": (
+        "Create a balanced summary with a clear overview, the main ideas, important supporting details, "
+        "and a concise conclusion. Include timestamps for the most useful points."
+    ),
+    "detailed": (
+        "Create a thorough summary that captures the main argument, supporting details, examples, explanations, "
+        "important context, and conclusions. Use timestamps throughout when they help the reader return to the source."
+    ),
+    "study_notes": (
+        "Turn the transcript into structured study notes. Emphasize key concepts, definitions, examples, important facts, "
+        "relationships between ideas, and review-worthy takeaways."
+    ),
+    "key_points": (
+        "Focus on the most important takeaways, decisions, recommendations, action items, conclusions, and memorable facts. "
+        "Prefer concise bullets and useful timestamps."
+    ),
+    "custom": (
+        "Follow the user's custom summary instructions while still obeying the accuracy, Markdown, and timestamp rules below."
+    ),
+}
+
+SUMMARY_STYLE_LABELS = {
+    "brief": "Brief",
+    "standard": "Standard",
+    "detailed": "Detailed",
+    "study_notes": "Study Notes",
+    "key_points": "Key Points",
+    "custom": "Custom",
+}
+
+
+def normalize_summary_style(style: str) -> str:
+    normalized = (style or "standard").strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized not in SUMMARY_STYLE_INSTRUCTIONS:
+        raise ValueError(
+            "Summary style must be brief, standard, detailed, study_notes, key_points, or custom."
+        )
+    return normalized
+
+
+def normalize_summary_custom_instructions(value: str | None) -> str:
+    instructions = (value or "").strip()
+    if len(instructions) > 4000:
+        raise ValueError("Custom summary instructions must be 4,000 characters or fewer.")
+    return instructions
+
+
+def make_summary(
+    segments: list[dict[str, Any]],
+    language: str,
+    style: str,
+    custom_instructions: str = "",
+) -> str:
     if not gemini_settings.is_configured():
         raise RuntimeError("Add your Gemini API key in Gemini Settings to create summaries.")
     try:
@@ -405,13 +542,31 @@ def make_summary(segments: list[dict[str, Any]], language: str, style: str) -> s
     )
     if len(transcript) > 350_000:
         transcript = transcript[:350_000]
+    style_id = normalize_summary_style(style)
+    custom_instructions = normalize_summary_custom_instructions(custom_instructions)
+    if style_id == "custom" and not custom_instructions:
+        raise ValueError("Custom summary style requires custom instructions.")
+
+    style_instruction = SUMMARY_STYLE_INSTRUCTIONS[style_id]
+    custom_block = (
+        f"\nUSER CUSTOM INSTRUCTIONS:\n{custom_instructions}\n"
+        if custom_instructions
+        else ""
+    )
     prompt = f"""
 You are summarizing a timestamped transcript for personal study.
 Write the summary in {'Simplified Chinese' if language == 'zh-CN' else language}.
-Style: {style}. Target length: 1,000–1,500 Chinese characters when the content is long enough.
-Use these sections when relevant: 核心概述、主要观点、重要细节、结论与行动项.
-Preserve technical English terms in parentheses after their Chinese term.
-Do not invent facts. When citing an important point, include its nearest timestamp.
+
+SUMMARY STYLE: {SUMMARY_STYLE_LABELS[style_id]}
+{style_instruction}
+{custom_block}
+Return clean Markdown only. Do not use Markdown code fences.
+Use ## headings for major sections, blank lines between blocks, numbered or bullet lists where they improve readability, and **bold** for important terms.
+Choose section headings that fit the selected style and source content.
+Preserve technical English terms in parentheses after their Chinese term when useful.
+Do not invent facts, claims, names, or details that are not supported by the transcript.
+When citing an important point, include its nearest timestamp in the form [123.4s].
+Avoid unnecessary repetition.
 
 TRANSCRIPT:
 {transcript}
@@ -428,6 +583,9 @@ def run_job(
     job_id: str, *, upload_path: str | None, source_url: str | None,
     model_name: str, language: str, diarize: bool,
     summary_language: str, summary_style: str,
+    summary_custom_instructions: str = "",
+    generate_summary: bool = False,
+    allow_gemini_fallback: bool = False,
 ) -> None:
     try:
         check_cancelled(job_id)
@@ -437,7 +595,13 @@ def run_job(
             check_cancelled(job_id)
             if source_url:
                 media_path, metadata = download_audio(source_url, temp_dir)
-                storage.update_job(job_id, title=metadata["title"], duration=metadata.get("duration"), progress=18)
+                storage.update_job(
+                    job_id,
+                    title=metadata["title"],
+                    creator_name=metadata.get("creator_name"),
+                    duration=metadata.get("duration"),
+                    progress=18,
+                )
             elif upload_path:
                 media_path = Path(upload_path)
             else:
@@ -470,17 +634,23 @@ def run_job(
                 check_cancelled(job_id)
                 result = local_transcribe(normalized_path, model_name, language, report_transcription)
             except Exception as local_error:
+                if not allow_gemini_fallback:
+                    raise RuntimeError(f"Local transcription failed: {local_error}") from local_error
                 if not gemini_settings.is_configured():
-                    raise RuntimeError(f"Local transcription failed and Gemini fallback is unavailable: {local_error}") from local_error
+                    raise RuntimeError(
+                        f"Local transcription failed and optional Gemini fallback is not configured: {local_error}"
+                    ) from local_error
                 storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
                 result = gemini_transcribe(normalized_path, language)
             else:
                 if transcript_needs_fallback(result):
-                    if gemini_settings.is_configured():
+                    if allow_gemini_fallback and gemini_settings.is_configured():
                         storage.add_warning(job_id, "Local transcription quality was low, so Gemini fallback was used.")
                         result = gemini_transcribe(normalized_path, language)
+                    elif allow_gemini_fallback:
+                        storage.add_warning(job_id, "Local transcription confidence was low; optional Gemini fallback is not configured.")
                     else:
-                        storage.add_warning(job_id, "Local transcription confidence was low; Gemini fallback is not configured.")
+                        storage.add_warning(job_id, "Local transcription confidence was low; cloud fallback was not requested.")
 
             check_cancelled(job_id)
             segments = result["segments"]
@@ -497,13 +667,22 @@ def run_job(
                     storage.add_warning(job_id, f"Speaker identification was skipped: {exc}")
 
             check_cancelled(job_id)
-            storage.update_job(job_id, progress=84, stage="summarize")
-            try:
-                summary = make_summary(segments, summary_language, summary_style)
-                check_cancelled(job_id)
-                storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
-            except Exception as exc:
-                storage.add_warning(job_id, f"Summary was not generated: {exc}")
+            if generate_summary:
+                storage.update_job(job_id, progress=84, stage="summarize")
+                try:
+                    summary = make_summary(segments, summary_language, summary_style, summary_custom_instructions)
+                    check_cancelled(job_id)
+                    storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
+                except Exception as exc:
+                    storage.add_warning(job_id, f"Summary was not generated: {exc}")
+            else:
+                storage.update_job(
+                    job_id,
+                    progress=92,
+                    stage="finalize",
+                    stage_detail="Transcript ready · summary not requested",
+                    stage_progress=100,
+                )
 
             storage.update_job(job_id, status="completed", progress=100, stage="complete")
     except JobCancelled:

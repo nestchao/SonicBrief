@@ -38,10 +38,19 @@ ALLOWED_MODELS = {
 }
 ALLOWED_EXTENSIONS = {
     ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+    ".mp4", ".mkv", ".mov", ".webm", ".avi", ".m4v",
 }
-ALLOWED_URL_HOSTS = {
-    "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be",
-    "bilibili.com", "www.bilibili.com", "m.bilibili.com", "b23.tv",
+ALLOWED_URL_SOURCES = {
+    "youtube.com": "youtube",
+    "youtu.be": "youtube",
+    "bilibili.com": "bilibili",
+    "b23.tv": "bilibili",
+    "vimeo.com": "vimeo",
+    "tiktok.com": "tiktok",
+    "x.com": "twitter",
+    "twitter.com": "twitter",
+    "soundcloud.com": "soundcloud",
+    "twitch.tv": "twitch",
 }
 
 

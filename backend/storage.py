@@ -34,6 +34,7 @@ def initialize() -> None:
                 title TEXT NOT NULL,
                 source_type TEXT NOT NULL,
                 source_url TEXT,
+                creator_name TEXT,
                 status TEXT NOT NULL,
                 progress INTEGER NOT NULL DEFAULT 0,
                 stage TEXT NOT NULL DEFAULT 'acquire',
@@ -72,6 +73,7 @@ def initialize() -> None:
             ("stage_detail", "ALTER TABLE jobs ADD COLUMN stage_detail TEXT"),
             ("stage_progress", "ALTER TABLE jobs ADD COLUMN stage_progress INTEGER NOT NULL DEFAULT 0"),
             ("processed_duration", "ALTER TABLE jobs ADD COLUMN processed_duration REAL"),
+            ("creator_name", "ALTER TABLE jobs ADD COLUMN creator_name TEXT"),
         ]
         for column, statement in migrations:
             if column not in existing_columns:
@@ -97,7 +99,7 @@ def create_job(
 
 def update_job(job_id: str, **fields: Any) -> None:
     allowed = {
-        "title", "status", "progress", "stage", "stage_detail", "stage_progress", "processed_duration", "duration", "language", "engine",
+        "title", "creator_name", "status", "progress", "stage", "stage_detail", "stage_progress", "processed_duration", "duration", "language", "engine",
         "transcript_json", "summary", "error", "warnings_json",
     }
     updates: list[str] = []

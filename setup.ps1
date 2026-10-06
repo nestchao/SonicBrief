@@ -22,3 +22,4 @@ Write-Host ""
 Write-Host "SonicBrief setup is complete." -ForegroundColor Green
 Write-Host "Start SonicBrief with start.bat, then open Gemini Settings to add your Google AI Studio API key and choose a Gemini model."
 Write-Host "For speaker identification, also install backend\requirements-diarization.txt and add HF_TOKEN."
+Write-Host "AI-agent integration is available through sonicbrief_mcp.py; it uses the same local backend and job queue."

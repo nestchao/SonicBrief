@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, Settings, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -224,7 +225,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
         {configured && <span className="sonic-settings-dot" aria-label="Gemini configured"><Check /></span>}
       </Button>
 
-      {open && (
+      {open && createPortal(
         <div
           className="sonic-settings-backdrop"
           role="presentation"
@@ -245,7 +246,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                 <span className="sonic-settings-connection-icon"><Check /></span>
                 <div>
                   <strong>{configured ? "Google AI Studio connected" : "Google AI Studio not connected"}</strong>
-                  <small>{configured ? "Your saved key stays on this computer." : "Add an API key to enable summaries and cloud fallback."}</small>
+                  <small>{configured ? "Your key is stored locally and never returned to the browser." : "Add an API key to enable summaries and Gemini fallback."}</small>
                 </div>
               </div>
 
@@ -311,7 +312,10 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                 </Select>
 
                 <div className="sonic-settings-model-detail">
-                  <strong>{(selectedModel?.label ?? model) || "No model loaded"}</strong>
+                  <div>
+                    <strong>{(selectedModel?.label ?? model) || "No model loaded"}</strong>
+                    {model && <code>{model}</code>}
+                  </div>
                   <span>
                     {loadingModels
                       ? "Checking the models available to this API key…"
@@ -348,7 +352,8 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
               </div>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

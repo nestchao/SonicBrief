@@ -46,6 +46,17 @@ def validate_options(model_name: str, language: str) -> None:
         raise HTTPException(status_code=400, detail="Distil-Whisper Large v3 supports English. Choose English/auto or another model.")
 
 
+def validate_summary_options(style: str, custom_instructions: str) -> tuple[str, str]:
+    try:
+        normalized_style = pipeline.normalize_summary_style(style)
+        normalized_custom = pipeline.normalize_summary_custom_instructions(custom_instructions)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if normalized_style == "custom" and not normalized_custom:
+        raise HTTPException(status_code=400, detail="Custom summary style requires custom instructions.")
+    return normalized_style, normalized_custom
+
+
 def submit_pipeline(job_id: str, **options: object) -> None:
     pipeline.register_job(job_id)
     EXECUTOR.submit(pipeline.run_job, job_id, **options)
@@ -63,6 +74,15 @@ def health() -> dict[str, object]:
         "diarization_configured": bool(config.HF_TOKEN),
         "models": config.ALLOWED_MODELS,
     }
+
+
+@app.get("/api/self-test/audio-decode")
+def self_test_audio_decode() -> dict[str, object]:
+    available, error = pipeline.probe_audio_decode()
+    result: dict[str, object] = {"audio_decode_available": available}
+    if error:
+        result["audio_decode_error"] = error
+    return result
 
 
 @app.get("/api/settings/gemini")
@@ -203,15 +223,20 @@ async def create_upload_job(
     file: UploadFile = File(...),
     model_name: str = Form("turbo"),
     language: str = Form("auto"),
-    diarize: bool = Form(True),
+    diarize: bool = Form(False),
     summary_language: str = Form("zh-CN"),
-    summary_style: str = Form("detailed"),
+    summary_style: str = Form("standard"),
+    summary_custom_instructions: str = Form(""),
+    generate_summary: bool = Form(False),
+    allow_gemini_fallback: bool = Form(False),
 ) -> dict[str, object]:
     validate_options(model_name, language)
+    if generate_summary:
+        summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
     filename = Path(file.filename or "recording").name
     suffix = Path(filename).suffix.lower()
     if suffix not in config.ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Unsupported audio type: {suffix or 'unknown'}")
+        raise HTTPException(status_code=400, detail=f"Unsupported media type: {suffix or 'unknown'}")
 
     record = storage.create_job(
         title=filename, source_type="upload", source_url=None,
@@ -237,6 +262,9 @@ async def create_upload_job(
         record["id"], upload_path=str(destination), source_url=None,
         model_name=model_name, language=language, diarize=diarize,
         summary_language=summary_language, summary_style=summary_style,
+        summary_custom_instructions=summary_custom_instructions,
+        generate_summary=generate_summary,
+        allow_gemini_fallback=allow_gemini_fallback,
     )
     return storage.get_job(record["id"])
 
@@ -246,16 +274,21 @@ def create_url_job(
     url: str = Form(...),
     model_name: str = Form("turbo"),
     language: str = Form("auto"),
-    diarize: bool = Form(True),
+    diarize: bool = Form(False),
     summary_language: str = Form("zh-CN"),
-    summary_style: str = Form("detailed"),
+    summary_style: str = Form("standard"),
+    summary_custom_instructions: str = Form(""),
+    generate_summary: bool = Form(False),
+    allow_gemini_fallback: bool = Form(False),
 ) -> dict[str, object]:
     validate_options(model_name, language)
+    if generate_summary:
+        summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
     try:
         source_type = pipeline.classify_url(url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    label = "YouTube video" if source_type == "youtube" else "Bilibili video"
+    label = f"{pipeline.source_label(source_type)} media"
     record = storage.create_job(
         title=label, source_type=source_type, source_url=url.strip(),
         model_name=model_name, diarization_enabled=diarize,
@@ -264,6 +297,9 @@ def create_url_job(
         record["id"], upload_path=None, source_url=url.strip(),
         model_name=model_name, language=language, diarize=diarize,
         summary_language=summary_language, summary_style=summary_style,
+        summary_custom_instructions=summary_custom_instructions,
+        generate_summary=generate_summary,
+        allow_gemini_fallback=allow_gemini_fallback,
     )
     return storage.get_job(record["id"])
 
@@ -272,8 +308,12 @@ def create_url_job(
 async def regenerate_summary(
     job_id: str,
     summary_language: str = Form("zh-CN"),
-    summary_style: str = Form("detailed"),
+    summary_style: str = Form("standard"),
+    summary_custom_instructions: str = Form(""),
 ) -> dict[str, object]:
+    summary_style, summary_custom_instructions = validate_summary_options(
+        summary_style, summary_custom_instructions
+    )
     try:
         record = storage.get_job(job_id)
     except KeyError as exc:
@@ -282,7 +322,13 @@ async def regenerate_summary(
     if not transcript:
         raise HTTPException(status_code=409, detail="This task has no transcript to summarize.")
     try:
-        summary = await asyncio.to_thread(pipeline.make_summary, transcript, summary_language, summary_style)
+        summary = await asyncio.to_thread(
+            pipeline.make_summary,
+            transcript,
+            summary_language,
+            summary_style,
+            summary_custom_instructions,
+        )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     storage.save_summary(job_id, summary, summary_language, summary_style, gemini_settings.get_gemini_model())
