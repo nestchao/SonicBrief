@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import ctranslate2
 import yt_dlp
 from faster_whisper import WhisperModel
+from faster_whisper.audio import decode_audio
 
 import config
 import gemini_settings
@@ -67,6 +68,28 @@ def cuda_available() -> bool:
 
 def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+
+
+def probe_audio_decode() -> tuple[bool, str | None]:
+    """Decode a tiny generated WAV to catch faster-whisper/PyAV API incompatibilities."""
+    import wave
+
+    fd, temp_name = tempfile.mkstemp(prefix="sonicbrief-self-test-", suffix=".wav")
+    os.close(fd)
+    try:
+        with wave.open(temp_name, "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(16000)
+            handle.writeframes(b"\x00\x00" * 1600)
+        decoded = decode_audio(temp_name, sampling_rate=16000)
+        if len(decoded) == 0:
+            return False, "Decoded self-test audio was empty."
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+    finally:
+        Path(temp_name).unlink(missing_ok=True)
 
 
 def get_model(model_name: str) -> tuple[WhisperModel, str, str]:

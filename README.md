@@ -114,7 +114,7 @@ Verify the image and automatic backend startup:
 docker run --rm -v sonicbrief-data:/data sonicbrief-mcp:local --self-test
 ```
 
-A healthy result reports `"ok": true` and `"ffmpeg_available": true`. This self-test starts the backend automatically, checks it, then exits.
+A healthy result reports `"ok": true`, `"ffmpeg_available": true`, and `"audio_decode_available": true`. This self-test starts the backend automatically, checks it, performs a tiny local faster-whisper/PyAV audio decode to catch dependency incompatibilities, then exits.
 
 Then configure the MCP host to launch Docker:
 
@@ -176,6 +176,7 @@ A successful GPU setup should report:
   "ok": true,
   "backend_started_by_mcp": true,
   "ffmpeg_available": true,
+  "audio_decode_available": true,
   "cuda_available": true,
   "device": "NVIDIA GPU"
 }

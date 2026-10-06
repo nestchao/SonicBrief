@@ -76,6 +76,15 @@ def health() -> dict[str, object]:
     }
 
 
+@app.get("/api/self-test/audio-decode")
+def self_test_audio_decode() -> dict[str, object]:
+    available, error = pipeline.probe_audio_decode()
+    result: dict[str, object] = {"audio_decode_available": available}
+    if error:
+        result["audio_decode_error"] = error
+    return result
+
+
 @app.get("/api/settings/gemini")
 def gemini_settings_status() -> dict[str, object]:
     return {

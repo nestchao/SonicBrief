@@ -518,13 +518,22 @@ def delete_job(job_id: str) -> dict[str, Any]:
 if __name__ == "__main__":
     if "--self-test" in sys.argv:
         health = _api_request("GET", "/api/health")
-        print(json.dumps({
-            "ok": bool(health.get("ok")),
+        audio_probe = _api_request("GET", "/api/self-test/audio-decode")
+        audio_decode_available = bool(audio_probe.get("audio_decode_available"))
+        audio_decode_error = audio_probe.get("audio_decode_error")
+        result = {
+            "ok": bool(health.get("ok")) and audio_decode_available,
             "backend_started_by_mcp": _BACKEND_STARTED_BY_MCP,
             "ffmpeg_available": health.get("ffmpeg_available"),
             "cuda_available": health.get("cuda_available"),
             "device": health.get("device"),
             "gemini_configured": health.get("gemini_configured"),
-        }, ensure_ascii=False))
+            "audio_decode_available": audio_decode_available,
+        }
+        if audio_decode_error:
+            result["audio_decode_error"] = audio_decode_error
+        print(json.dumps(result, ensure_ascii=False))
+        if not result["ok"]:
+            raise SystemExit(1)
     else:
         mcp.run()

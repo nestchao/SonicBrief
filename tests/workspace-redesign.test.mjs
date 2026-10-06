@@ -180,6 +180,7 @@ test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", 
   assert.match(mcpServer, /allow_gemini_fallback: bool = False/);
   assert.match(mcpServer, /default_mcp_mode": "local transcript only"/);
   assert.match(mcpServer, /"--self-test" in sys\.argv/);
+  assert.match(mcpServer, /\/api\/self-test\/audio-decode/);
   assert.match(mcpServer, /mcp\.run\(\)/);
   assert.match(requirements, /mcp>=2,<3/);
   assert.match(requirements, /httpx>=0\.28,<1/);
