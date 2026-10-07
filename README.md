@@ -12,6 +12,10 @@
   <strong>Local STT</strong> · <strong>NVIDIA GPU</strong> · <strong>Docker</strong> · <strong>MCP</strong> · <strong>Optional Gemini</strong>
 </p>
 
+<p align="center">
+  <img src="docs/sonicbrief-hero.jpg" alt="SonicBrief local-first transcription workspace" width="100%">
+</p>
+
 SonicBrief turns public media links and local audio/video files into searchable, timestamped transcripts. It accepts YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch, and local files. Local `faster-whisper` transcription is the core service; Gemini fallback and built-in summaries are optional. Transcripts, optional summaries, and job history are stored in SQLite.
 
 ## Architecture
