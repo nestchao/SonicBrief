@@ -644,7 +644,7 @@ export function SonicBriefApp() {
                   </button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild><button className="sonic-history-menu" type="button" aria-label={"Actions for " + job.title}><MoreVertical /></button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => void renameJob(job)}><Pencil />Rename</DropdownMenuItem><DropdownMenuItem variant="destructive" onSelect={() => void deleteJob(job)}><Trash2 />Delete</DropdownMenuItem></DropdownMenuContent>
+                    <DropdownMenuContent className="z-[140]" align="end"><DropdownMenuItem onSelect={() => void renameJob(job)}><Pencil />Rename</DropdownMenuItem><DropdownMenuItem variant="destructive" onSelect={() => void deleteJob(job)}><Trash2 />Delete</DropdownMenuItem></DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               )) : <div className="sonic-history-empty"><Search /><div><strong>No matching history</strong><p>Try another title, creator, or filter.</p></div></div>}

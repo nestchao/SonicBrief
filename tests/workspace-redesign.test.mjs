@@ -25,6 +25,7 @@ test("workspace includes searchable history, creator filters, and transcript cop
   assert.match(source, /creatorFilter/);
   assert.match(source, /filteredHistory/);
   assert.match(source, /Search history…/);
+  assert.match(source, /DropdownMenuContent className="z-\[140\]"/);
   assert.match(source, /Copy entire transcript/);
   assert.match(source, /transcriptQuery/);
   assert.match(source, /\/api\/jobs\?limit=200/);
