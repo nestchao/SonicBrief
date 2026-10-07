@@ -608,17 +608,13 @@ button, input { font: inherit; }
 }
 
 .sonic-brand-mark {
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 2.65rem;
+  height: 2.65rem;
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: .72rem;
-  color: white;
-  background: linear-gradient(145deg, #694fe6, #9078f5);
+  display: block;
+  object-fit: cover;
+  border-radius: .85rem;
   box-shadow: 0 10px 24px rgb(105 79 230 / .24);
-  font-size: .9rem;
-  font-weight: 800;
 }
 
 .sonic-sidebar-brand strong {

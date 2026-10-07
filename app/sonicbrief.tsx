@@ -340,7 +340,7 @@ export function SonicBriefApp() {
     <main className="sonic-app-shell">
       <aside className="sonic-sidebar">
         <div className="sonic-sidebar-brand">
-          <div className="sonic-brand-mark">S</div>
+          <img className="sonic-brand-mark" src="/sonicbrief-logo.png" alt="SonicBrief logo" />
           <div><strong>SonicBrief</strong><span>Audio workspace</span></div>
         </div>
 
