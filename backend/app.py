@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +19,11 @@ import pipeline
 import storage
 
 EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sonicbrief-worker")
+BACKEND_INSTANCE_ID = uuid.uuid4().hex
+
+
+def runtime_kind() -> str:
+    return "docker" if Path("/.dockerenv").exists() else "native"
 
 
 @asynccontextmanager
@@ -67,6 +74,11 @@ def health() -> dict[str, object]:
     gpu = pipeline.cuda_available()
     return {
         "ok": True,
+        "backend_runtime": runtime_kind(),
+        "backend_pid": os.getpid(),
+        "backend_instance_id": BACKEND_INSTANCE_ID,
+        "data_dir": str(config.DATA_DIR),
+        "database_path": str(config.DATABASE_PATH),
         "cuda_available": gpu,
         "device": "NVIDIA GPU" if gpu else "CPU mode",
         "ffmpeg_available": pipeline.ffmpeg_available(),
@@ -369,7 +381,7 @@ def export_job(job_id: str, format_name: str) -> PlainTextResponse:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Task not found.") from exc
     segments = record.get("transcript") or []
-    safe_name = "".join(char if char.isalnum() or char in "-_" else "_" for char in record["title"])[:80] or "transcript"
+    display_stem = str(record["title"]).strip()[:80] or "transcript"
     if format_name == "srt":
         parts = []
         for index, segment in enumerate(segments, 1):
@@ -383,7 +395,13 @@ def export_job(job_id: str, format_name: str) -> PlainTextResponse:
         extension, media_type = "txt", "text/plain"
     else:
         raise HTTPException(status_code=400, detail="Export format must be txt, srt, or json.")
-    return PlainTextResponse(content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{safe_name}.{extension}"'})
+    ascii_stem = "".join(
+        char if char.isascii() and (char.isalnum() or char in "-_") else "_"
+        for char in display_stem
+    ).strip("_") or f"transcript-{job_id[:8]}"
+    utf8_name = quote(f"{display_stem}.{extension}", safe="")
+    disposition = f"attachment; filename=\"{ascii_stem}.{extension}\"; filename*=UTF-8''{utf8_name}"
+    return PlainTextResponse(content, media_type=media_type, headers={"Content-Disposition": disposition})
 
 
 if __name__ == "__main__":

@@ -167,7 +167,7 @@ The `sonicbrief-data` volume persists:
 - downloaded Whisper/Hugging Face model cache
 - application cache
 
-The FastAPI backend stays inside the same container and is not published to the host network. The first transcription for a Whisper model may take longer while its model files are downloaded; later container runs reuse the model from the Docker volume.
+The FastAPI backend stays inside the same container and is not published to the host network. Therefore an MCP health response may show `backend_url: http://127.0.0.1:7860` even though Windows has a different process on host port 7860: inside Docker, that loopback address belongs to the MCP container. `get_health` reports `backend_runtime`, `backend_scope`, `backend_pid`, `backend_instance_id`, `data_dir`, and `database_path` so agents can distinguish the container backend from a native host backend. The first transcription for a Whisper model may take longer while its model files are downloaded; later container runs reuse the model from the Docker volume.
 
 The included `compose.yaml` provides the same persistent setup for users who prefer Compose:
 
@@ -208,6 +208,9 @@ A successful GPU setup should report:
 {
   "ok": true,
   "backend_started_by_mcp": true,
+  "backend_runtime": "docker",
+  "data_dir": "/data",
+  "database_path": "/data/sonicbrief.sqlite3",
   "ffmpeg_available": true,
   "audio_decode_available": true,
   "cuda_available": true,
@@ -258,6 +261,7 @@ Available MCP tools include:
 - `submit_local_file`
 - `get_job`, `list_jobs`, and `search_jobs`
 - `get_transcript` with offset/limit pagination
+- `export_transcript` for exact `txt`, `srt`, or `json` backend exports
 - `get_summary` for an already stored built-in summary
 - `generate_summary_with_gemini` for explicit Gemini summarization
 - `cancel_job`

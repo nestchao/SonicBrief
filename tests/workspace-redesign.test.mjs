@@ -148,15 +148,22 @@ test("Bilibili downloads retry interrupted transfers and report clean errors", a
 
 test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", async () => {
   const mcpServer = await readFile(path.join(root, "sonicbrief_mcp.py"), "utf8");
+  const backendApp = await readFile(path.join(root, "backend", "app.py"), "utf8");
   const requirements = await readFile(path.join(root, "backend", "requirements.txt"), "utf8");
 
   assert.match(mcpServer, /from mcp\.server import MCPServer/);
   assert.match(mcpServer, /MCPServer\("SonicBrief"\)/);
   assert.match(mcpServer, /SONICBRIEF_API_BASE/);
   assert.match(mcpServer, /127\.0\.0\.1:7860/);
-  assert.match(mcpServer, /processing_location": "local computer"/);
+  assert.match(mcpServer, /backend_reachable": True/);
+  assert.match(mcpServer, /backend_scope/);
+  assert.match(mcpServer, /mcp_runtime/);
   assert.match(mcpServer, /whisper_location": "local SonicBrief backend"/);
   assert.doesNotMatch(mcpServer, /from faster_whisper|WhisperModel/);
+  assert.match(backendApp, /backend_instance_id/);
+  assert.match(backendApp, /backend_runtime/);
+  assert.match(backendApp, /database_path/);
+  assert.match(backendApp, /filename\*=UTF-8/);
 
   for (const tool of [
     "submit_media_url",
@@ -167,6 +174,7 @@ test("local MCP bridge exposes SonicBrief jobs without loading Whisper itself", 
     "search_jobs",
     "get_summary",
     "get_transcript",
+    "export_transcript",
     "generate_summary_with_gemini",
     "cancel_job",
     "delete_job",
@@ -219,4 +227,5 @@ test("Docker MCP image keeps secrets out and persists STT data and model cache",
   assert.match(compose, /dockerfile: Dockerfile\.gpu/);
   assert.match(compose, /gpus: all/);
   assert.match(mcpServer, /backend_started_by_mcp/);
+  assert.match(mcpServer, /database_path/);
 });

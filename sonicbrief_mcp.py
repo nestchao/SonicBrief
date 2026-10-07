@@ -74,6 +74,18 @@ def _backend_is_healthy(timeout: float = 1.0) -> bool:
         return False
 
 
+def _runtime_kind() -> str:
+    return "docker" if Path("/.dockerenv").exists() else "native"
+
+
+def _backend_scope(backend_runtime: str) -> str:
+    if backend_runtime == "docker":
+        return "container-loopback"
+    if backend_runtime == "native":
+        return "host-loopback"
+    return "loopback-unknown"
+
+
 def _stop_managed_backend() -> None:
     global _BACKEND_PROCESS, _BACKEND_STARTED_BY_MCP
     process = _BACKEND_PROCESS
@@ -193,6 +205,36 @@ def _api_request(
         raise RuntimeError("SonicBrief returned an unexpected non-JSON response.") from exc
 
 
+def _api_text_request(path: str, *, timeout: float = 120.0) -> dict[str, str]:
+    _ensure_backend()
+    try:
+        with httpx.Client(base_url=API_BASE, timeout=timeout) as client:
+            response = client.get(path)
+    except httpx.ConnectError as exc:
+        raise RuntimeError(
+            "The local SonicBrief backend became unavailable while handling the MCP request."
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Could not reach the local SonicBrief backend: {exc}") from exc
+
+    if response.status_code >= 400:
+        detail: Any = None
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                detail = payload.get("detail")
+        except ValueError:
+            detail = None
+        message = str(detail or response.text or f"HTTP {response.status_code}").strip()
+        raise RuntimeError(f"SonicBrief API error ({response.status_code}): {message}")
+
+    return {
+        "content": response.text,
+        "content_type": response.headers.get("content-type", ""),
+        "content_disposition": response.headers.get("content-disposition", ""),
+    }
+
+
 def _job_overview(job: dict[str, Any]) -> dict[str, Any]:
     return {key: job.get(key) for key in _JOB_OVERVIEW_FIELDS if key in job}
 
@@ -232,12 +274,18 @@ def _job_options(
 
 @mcp.tool()
 def get_health() -> dict[str, Any]:
-    """Check the local SonicBrief STT backend, Whisper/GPU status, and optional cloud features."""
+    """Check backend liveness plus runtime/storage identity, Whisper/GPU status, and optional cloud features."""
     health = _api_request("GET", "/api/health")
+    mcp_runtime = _runtime_kind()
+    backend_runtime = str(health.get("backend_runtime") or "unknown")
     return {
         **health,
+        "backend_reachable": True,
         "backend_url": API_BASE,
-        "processing_location": "local computer",
+        "backend_scope": _backend_scope(backend_runtime),
+        "mcp_runtime": mcp_runtime,
+        "mcp_pid": os.getpid(),
+        "processing_location": "local Docker container" if backend_runtime == "docker" else "local computer",
         "whisper_location": "local SonicBrief backend",
         "backend_started_by_mcp": _BACKEND_STARTED_BY_MCP,
         "auto_start_backend": AUTO_START_BACKEND,
@@ -465,6 +513,23 @@ def get_transcript(
 
 
 @mcp.tool()
+def export_transcript(job_id: str, format_name: str = "txt") -> dict[str, Any]:
+    """Export a completed transcript as txt, srt, or json so the agent can save or pass through the exact backend export."""
+    selected_format = format_name.strip().lower()
+    if selected_format not in {"txt", "srt", "json"}:
+        raise ValueError("Transcript export format must be txt, srt, or json.")
+    exported = _api_text_request(
+        f"/api/jobs/{job_id}/export/{selected_format}",
+        timeout=120.0,
+    )
+    return {
+        "job_id": job_id,
+        "format": selected_format,
+        **exported,
+    }
+
+
+@mcp.tool()
 def get_summary(job_id: str) -> dict[str, Any]:
     """Return a stored built-in summary if one was explicitly generated."""
     job = _api_request("GET", f"/api/jobs/{job_id}")
@@ -523,7 +588,15 @@ if __name__ == "__main__":
         audio_decode_error = audio_probe.get("audio_decode_error")
         result = {
             "ok": bool(health.get("ok")) and audio_decode_available,
+            "backend_reachable": True,
             "backend_started_by_mcp": _BACKEND_STARTED_BY_MCP,
+            "backend_runtime": health.get("backend_runtime"),
+            "backend_scope": _backend_scope(str(health.get("backend_runtime") or "unknown")),
+            "mcp_runtime": _runtime_kind(),
+            "backend_pid": health.get("backend_pid"),
+            "backend_instance_id": health.get("backend_instance_id"),
+            "data_dir": health.get("data_dir"),
+            "database_path": health.get("database_path"),
             "ffmpeg_available": health.get("ffmpeg_available"),
             "cuda_available": health.get("cuda_available"),
             "device": health.get("device"),

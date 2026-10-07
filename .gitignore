@@ -14,6 +14,9 @@ backend/.env
 !/backend/.env.example
 
 data/
+transcripts/
+summaries/
+opencode.json
 *.pyc
 __pycache__/
 legacy/
