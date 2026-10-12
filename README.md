@@ -358,3 +358,11 @@ npm run build
 - `GET /api/jobs/{id}/export/srt`
 - `GET /api/jobs/{id}/export/json`
 - `DELETE /api/jobs/{id}`
+
+## License
+
+SonicBrief's original source code is released under the [MIT License](LICENSE)
+(Copyright (c) 2026 nestchao). Third-party dependencies, model weights, and
+bundled tools such as FFmpeg retain their respective licenses. The portable
+Windows release must include applicable third-party license notices and meet
+redistribution requirements before general publication.
