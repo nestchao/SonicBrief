@@ -1,0 +1,34 @@
+{
+  "name": "@nestchao/sonicbrief-mcp",
+  "version": "0.1.0",
+  "description": "SonicBrief local-first transcription MCP, Windows portable launcher",
+  "type": "module",
+  "bin": {
+    "sonicbrief-mcp": "./bin/sonicbrief-mcp.mjs"
+  },
+  "files": [
+    "bin/",
+    "runtime-manifest.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "license": "MIT",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nestchao/SonicBrief.git",
+    "directory": "npm/sonicbrief-mcp"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "pack:dry-run": "npm pack --dry-run"
+  }
+}
