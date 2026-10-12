@@ -59,6 +59,7 @@ def build() -> None:
             "--add-binary", f"{ffmpeg};.",
             "--add-binary", f"{ffprobe};.",
             "--add-data", f"{ROOT / 'LICENSE'};.",
+            "--add-data", f"{ROOT / 'THIRD_PARTY_NOTICES.md'};.",
             # Runtime plugin loaders don't always appear in static import analysis.
             "--hidden-import", "app",
             "--hidden-import", "config",
