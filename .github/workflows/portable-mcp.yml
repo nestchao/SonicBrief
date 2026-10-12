@@ -6,6 +6,8 @@ on:
       - "sonicbrief_mcp.py"
       - "backend/**"
       - "scripts/package_windows_cpu.py"
+      - "scripts/test_portable_mcp_stdio.py"
+      - "THIRD_PARTY_NOTICES.md"
       - "npm/sonicbrief-mcp/**"
       - ".github/workflows/portable-mcp.yml"
   push:
