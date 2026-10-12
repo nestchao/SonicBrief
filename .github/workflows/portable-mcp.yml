@@ -78,6 +78,7 @@ jobs:
         run: |
           $env:SONICBRIEF_FORCE_CPU = '1'
           $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP "SonicBriefTestData"
+          if (!(Test-Path "build/portable/SonicBrief-MCP/LICENSE")) { throw "MIT LICENSE was not bundled." }
           & "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe" --self-test
           if ($LASTEXITCODE -ne 0) { throw "The packaged MCP failed the self-test." }
 
