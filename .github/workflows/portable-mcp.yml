@@ -1,0 +1,123 @@
+name: Portable Windows MCP
+
+on:
+  pull_request:
+    paths:
+      - "sonicbrief_mcp.py"
+      - "backend/**"
+      - "scripts/package_windows_cpu.py"
+      - "npm/sonicbrief-mcp/**"
+      - ".github/workflows/portable-mcp.yml"
+  push:
+    tags:
+      - "mcp-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  launcher-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run launcher tests
+        run: npm test --prefix npm/sonicbrief-mcp
+
+  windows-cpu:
+    needs: launcher-tests
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate release tag matches npm version
+        shell: pwsh
+        run: |
+          $package = Get-Content npm/sonicbrief-mcp/package.json -Raw | ConvertFrom-Json
+          $expected = "mcp-v$($package.version)"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $expected) {
+            throw "Tag must be $expected to match the npm launcher."
+          }
+
+      - name: Install Python runtime/build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install "pyinstaller>=6.14,<7"
+
+      - name: Provide native FFmpeg and FFprobe binaries
+        shell: pwsh
+        run: |
+          choco install ffmpeg --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw "Could not install ffmpeg." }
+          $candidates = @(Get-ChildItem "$env:ChocolateyInstall\lib\ffmpeg\tools" -Filter ffmpeg.exe -Recurse -ErrorAction SilentlyContinue)
+          $location = $candidates | Where-Object {
+            Test-Path (Join-Path $_.DirectoryName 'ffprobe.exe')
+          } | Select-Object -First 1
+          if (!$location) { throw "Native ffmpeg.exe and ffprobe.exe were not found together." }
+          "FFMPEG_DIR=$($location.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build PyInstaller CPU runtime
+        run: python scripts/package_windows_cpu.py
+
+      - name: Self-test packaged application (no Docker or Python environment at runtime)
+        shell: pwsh
+        run: |
+          $env:SONICBRIEF_FORCE_CPU = '1'
+          $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP "SonicBriefTestData"
+          & "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "The packaged MCP failed the self-test." }
+
+      - name: Create ZIP, SHA-256 and npm package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/release | Out-Null
+          $zip = "build/release/sonicbrief-windows-x64-cpu.zip"
+          Compress-Archive -Path "build/portable/SonicBrief-MCP/*" -DestinationPath $zip
+          $digest = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  sonicbrief-windows-x64-cpu.zip" | Set-Content "build/release/SHA256SUMS.txt" -Encoding ascii
+          $manifestPath = "npm/sonicbrief-mcp/runtime-manifest.json"
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $manifest.sha256 = $digest
+          $encoded = $manifest | ConvertTo-Json -Depth 5
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) $manifestPath), $encoded, [System.Text.UTF8Encoding]::new($false))
+          Push-Location npm/sonicbrief-mcp
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'npm test failed.' }
+          npm pack --pack-destination ../../build/release
+          if ($LASTEXITCODE -ne 0) { throw 'npm pack failed.' }
+          Pop-Location
+
+      - name: Upload release candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-windows-mcp
+          path: |
+            build/release/*.zip
+            build/release/SHA256SUMS.txt
+            build/release/*.tgz
+
+      - name: Publish tagged GitHub Release (npm publishing remains manual)
+        if: startsWith(github.ref, 'refs/tags/mcp-v')
+        shell: pwsh
+        env:
+          GH_TOKEN: @GH_TOKEN@
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" 
+            "build/release/sonicbrief-windows-x64-cpu.zip" 
+            "build/release/SHA256SUMS.txt" 
+            --title "SonicBrief MCP $env:GITHUB_REF_NAME (Windows CPU)" 
+            --generate-notes
