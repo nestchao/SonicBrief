@@ -58,6 +58,7 @@ def build() -> None:
             "--add-data", f"{staged_backend};backend",
             "--add-binary", f"{ffmpeg};.",
             "--add-binary", f"{ffprobe};.",
+            "--add-data", f"{ROOT / 'LICENSE'};.",
             # Runtime plugin loaders don't always appear in static import analysis.
             "--hidden-import", "app",
             "--hidden-import", "config",
