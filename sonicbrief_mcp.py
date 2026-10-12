@@ -15,9 +15,22 @@ from urllib.parse import urlparse
 import httpx
 from mcp.server import MCPServer
 
-PROJECT_DIR = Path(__file__).resolve().parent
-BACKEND_DIR = PROJECT_DIR / "backend"
+# PyInstaller bundles the backend beside the executable. The regular source
+# layout continues to work unchanged for Docker and native Python installs.
+FROZEN = bool(getattr(sys, "frozen", False))
+PROJECT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+BACKEND_DIR = Path(getattr(sys, "_MEIPASS", PROJECT_DIR)) / "backend" if FROZEN else PROJECT_DIR / "backend"
 BACKEND_APP = BACKEND_DIR / "app.py"
+
+if FROZEN:
+    # FFmpeg and FFprobe ship beside the frozen executable, not on the user's PATH.
+    runtime_dir = Path(getattr(sys, "_MEIPASS", PROJECT_DIR))
+    os.environ["PATH"] = os.pathsep.join((str(runtime_dir), os.environ.get("PATH", "")))
+    # Keep SQLite/cache outside the replaceable (possibly read-only) application.
+    local_data = Path(os.getenv("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "SonicBrief"
+    os.environ.setdefault("SONICBRIEF_DATA_DIR", str(local_data / "data"))
+    os.environ.setdefault("HF_HOME", str(local_data / "models"))
+    os.environ.setdefault("XDG_CACHE_HOME", str(local_data / "cache"))
 
 API_BASE = os.getenv("SONICBRIEF_API_BASE", "http://127.0.0.1:7860").rstrip("/")
 _PARSED_API_BASE = urlparse(API_BASE)
@@ -143,8 +156,9 @@ def _ensure_backend() -> None:
             if os.name == "nt":
                 kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
+            backend_command = [sys.executable, "--backend"] if FROZEN else [sys.executable, str(BACKEND_APP)]
             _BACKEND_PROCESS = subprocess.Popen(
-                [sys.executable, str(BACKEND_APP)],
+                backend_command,
                 **kwargs,
             )
             _BACKEND_STARTED_BY_MCP = True
@@ -580,8 +594,23 @@ def delete_job(job_id: str) -> dict[str, Any]:
     return {"job_id": job_id, **result}
 
 
+def _run_embedded_backend() -> None:
+    """Run the real FastAPI application in a child of the frozen MCP executable."""
+    # PyInstaller analysis includes these imports through --paths backend and
+    # --hidden-import directives, and the bundle contains backend/*.py.
+    if str(BACKEND_DIR) not in sys.path:
+        sys.path.insert(0, str(BACKEND_DIR))
+    import app as backend_app
+    import config as backend_config
+    import uvicorn
+
+    uvicorn.run(backend_app.app, host=backend_config.HOST, port=backend_config.PORT, reload=False)
+
+
 if __name__ == "__main__":
-    if "--self-test" in sys.argv:
+    if "--backend" in sys.argv:
+        _run_embedded_backend()
+    elif "--self-test" in sys.argv:
         health = _api_request("GET", "/api/health")
         audio_probe = _api_request("GET", "/api/self-test/audio-decode")
         audio_decode_available = bool(audio_probe.get("audio_decode_available"))

@@ -60,6 +60,9 @@ def check_cancelled(job_id: str) -> None:
 
 
 def cuda_available() -> bool:
+    # Portable CPU releases set this to avoid attempting CUDA without its DLLs.
+    if os.getenv("SONICBRIEF_FORCE_CPU", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return False
     try:
         return ctranslate2.get_cuda_device_count() > 0
     except Exception:

@@ -244,6 +244,46 @@ docker compose --profile gpu run --rm -T sonicbrief-mcp-gpu --self-test
 
 If `nvidia-smi` works inside an NVIDIA CUDA container but SonicBrief still reports `cuda_available: false`, the remaining issue is inside the CUDA/cuDNN/CTranslate2 runtime rather than Docker GPU passthrough.
 
+### Experimental portable Windows MCP (release packaging)
+
+A **Windows x64 CPU-only** distribution is being prepared for users who do
+not want Docker, Python, or FFmpeg installed on their PCs. The package will be
+delivered through an npm launcher, similar to Chrome DevTools MCP. **Node.js
+20.19+ and npm are still required.** Model weights download on first use.
+
+Once an official `mcp-v0.1.0` GitHub Release and the corresponding
+`@nestchao/sonicbrief-mcp` npm package have been published, a supported
+MCP host can run:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sonicbrief": {
+        "type": "local",
+        "command": ["npx", "-y", "@nestchao/sonicbrief-mcp@latest"]
+      }
+    }
+  }
+}
+```
+
+This **is not available from npm yet**. GitHub's portable build workflow
+(`.github/workflows/portable-mcp.yml`) creates the Windows ZIP,
+SHA-256 checksums, and an npm tarball with the verified ZIP digest. The tagged workflow creates a **draft GitHub Release** for review; publishing
+it and releasing the matching npm tarball are separate manual steps after testing. Do not publish
+the checked-in npm folder as-is; its digest is intentionally empty.
+
+On first launch, the npm package fetches the checksum-pinned GitHub Release
+under `%LOCALAPPDATA%\SonicBrief\runtime\`. Job history and model caches
+are preserved separately in `%LOCALAPPDATA%\SonicBrief\data` and
+`%LOCALAPPDATA%\SonicBrief\models`. It launches the local MCP over
+stdio and automatically starts/stops FastAPI. The portable CPU package does
+not require Docker Desktop, and its local SQLite database is separate from
+existing Docker volume data. Optional Gemini features still require users'
+own credentials. Compatible NVIDIA GPU runtime packaging is planned after
+the Windows CPU workflow is validated.
+
 ### Native MCP installation
 
 Docker is optional. If SonicBrief is already installed natively, configure the MCP host with:
@@ -272,6 +312,13 @@ Long-running transcription remains job-based: submit first, check `get_job`, the
 ### Privacy model
 
 Local Whisper keeps STT audio processing on the computer/container. If the connected AI agent summarizes the transcript using a cloud model, the transcript may be sent to that model provider. If Gemini fallback or `generate_summary_with_gemini` is explicitly used, the relevant audio/transcript is sent to Google's API.
+
+## License
+
+SonicBrief's project-owned code is licensed under the [MIT License](LICENSE).
+Third-party dependencies and bundled binaries, including FFmpeg, retain their
+own licenses and distribution requirements. See [third-party notices](THIRD_PARTY_NOTICES.md)
+and complete the distribution/source obligations before public publication.
 
 ## Development commands
 
@@ -311,3 +358,11 @@ npm run build
 - `GET /api/jobs/{id}/export/srt`
 - `GET /api/jobs/{id}/export/json`
 - `DELETE /api/jobs/{id}`
+
+## License
+
+SonicBrief's original source code is released under the [MIT License](LICENSE)
+(Copyright (c) 2026 nestchao). Third-party dependencies, model weights, and
+bundled tools such as FFmpeg retain their respective licenses. The portable
+Windows release must include applicable third-party license notices and meet
+redistribution requirements before general publication.
