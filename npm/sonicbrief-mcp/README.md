@@ -57,3 +57,9 @@ npm pack --dry-run
 The SonicBrief launcher is licensed under [MIT](LICENSE).
 Bundled third-party runtime components are distributed under their own terms;
 see the release notices when available.
+
+## License
+
+The SonicBrief npm launcher is distributed under the [MIT License](LICENSE).
+The separately downloaded portable runtime contains third-party software,
+including FFmpeg, whose license terms remain separate and must be respected.
