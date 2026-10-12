@@ -71,7 +71,8 @@ def build() -> None:
             "--collect-all", "tokenizers",
             "--collect-all", "huggingface_hub",
             "--collect-all", "yt_dlp",
-            "--collect-all", "mcp",
+            "--collect-submodules", "mcp.server",
+            "--collect-submodules", "mcp.shared",
             "--collect-submodules", "google.genai",
         ])
 
