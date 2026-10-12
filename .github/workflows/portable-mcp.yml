@@ -81,6 +81,14 @@ jobs:
           & "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe" --self-test
           if ($LASTEXITCODE -ne 0) { throw "The packaged MCP failed the self-test." }
 
+      - name: Smoke-test npm launcher against bundled runtime
+        shell: pwsh
+        run: |
+          $env:SONICBRIEF_MCP_BINARY = (Resolve-Path "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe").Path
+          $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP "SonicBriefLauncherData"
+          node npm/sonicbrief-mcp/bin/sonicbrief-mcp.mjs --self-test
+          if ($LASTEXITCODE -ne 0) { throw "The npm launcher could not start the portable MCP." }
+
       - name: Create ZIP, SHA-256 and npm package
         shell: pwsh
         run: |
