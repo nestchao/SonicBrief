@@ -313,6 +313,13 @@ Long-running transcription remains job-based: submit first, check `get_job`, the
 
 Local Whisper keeps STT audio processing on the computer/container. If the connected AI agent summarizes the transcript using a cloud model, the transcript may be sent to that model provider. If Gemini fallback or `generate_summary_with_gemini` is explicitly used, the relevant audio/transcript is sent to Google's API.
 
+## License
+
+SonicBrief's project-owned code is licensed under the [MIT License](LICENSE).
+Third-party dependencies and bundled binaries, including FFmpeg, retain their
+own licenses and distribution requirements. The portable release must include
+applicable third-party notices before public publication.
+
 ## Development commands
 
 Frontend:
