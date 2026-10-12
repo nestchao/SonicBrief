@@ -60,17 +60,38 @@ jobs:
           python -m pip install -r backend/requirements.txt
           python -m pip install "pyinstaller>=6.14,<7"
 
-      - name: Provide native FFmpeg and FFprobe binaries
+      - name: Acquire checksum-pinned LGPL FFmpeg shared build
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          choco install ffmpeg --no-progress -y
-          if ($LASTEXITCODE -ne 0) { throw "Could not install ffmpeg." }
-          $candidates = @(Get-ChildItem "$env:ChocolateyInstall\lib\ffmpeg\tools" -Filter ffmpeg.exe -Recurse -ErrorAction SilentlyContinue)
-          $location = $candidates | Where-Object {
-            Test-Path (Join-Path $_.DirectoryName 'ffprobe.exe')
-          } | Select-Object -First 1
-          if (!$location) { throw "Native ffmpeg.exe and ffprobe.exe were not found together." }
-          "FFMPEG_DIR=$($location.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $ErrorActionPreference = 'Stop'
+          $buildTag = 'autobuild-2026-09-30-13-08'
+          $asset = 'ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip'
+          $sha256 = '7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646'
+          $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg-lgpl'
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          gh release download $buildTag --repo BtbN/FFmpeg-Builds --pattern $asset --dir $dest
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to download approved FFmpeg LGPL build.' }
+          $zip = Join-Path $dest $asset
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha256) {
+            throw 'FFmpeg build digest has changed. Packaging refused.'
+          }
+          Expand-Archive -Path $zip -DestinationPath (Join-Path $dest 'extracted') -Force
+          $ffmpeg = Get-ChildItem (Join-Path $dest 'extracted') -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
+          if (!$ffmpeg) { throw 'Downloaded FFmpeg build is missing ffmpeg.exe.' }
+          $dir = $ffmpeg.DirectoryName
+          if (!(Test-Path (Join-Path $dir 'ffprobe.exe'))) { throw 'FFprobe missing.' }
+          if (!(Get-ChildItem $dir -Filter '*.dll')) { throw 'Expected shared FFmpeg DLLs.' }
+          $versionOutput = (& $ffmpeg.FullName -version 2>&1 | Out-String)
+          $licenseOutput = (& $ffmpeg.FullName -L 2>&1 | Out-String)
+          if ($versionOutput -match '--enable-gpl' -or $licenseOutput -notmatch 'GNU Lesser General Public License') {
+            throw 'Unexpected FFmpeg license/build flags. Packaging refused.'
+          }
+          $license = Join-Path (Split-Path $dir -Parent) 'LICENSE.txt'
+          if (!(Test-Path $license)) { throw 'LGPL license text missing.' }
+          "FFMPEG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "FFMPEG_LICENSE_FILE=$license" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build PyInstaller CPU runtime
         run: python scripts/package_windows_cpu.py
@@ -82,6 +103,7 @@ jobs:
           $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP "SonicBriefTestData"
           if (!(Test-Path "build/portable/SonicBrief-MCP/LICENSE")) { throw "MIT LICENSE was not bundled." }
           if (!(Test-Path "build/portable/SonicBrief-MCP/THIRD_PARTY_NOTICES.md")) { throw "Third-party notices were not bundled." }
+          if (!(Test-Path "build/portable/SonicBrief-MCP/third_party/ffmpeg/LICENSE.txt")) { throw "FFmpeg LGPL license was not bundled." }
           & "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe" --self-test
           if ($LASTEXITCODE -ne 0) { throw "The packaged MCP failed the self-test." }
 
