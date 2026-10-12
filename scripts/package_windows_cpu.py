@@ -35,6 +35,12 @@ def build() -> None:
 
     ffmpeg = binary_path("ffmpeg.exe")
     ffprobe = binary_path("ffprobe.exe")
+    ffmpeg_license_path = Path(os.environ.get("FFMPEG_LICENSE_FILE", ""))
+    if not ffmpeg_license_path.is_file():
+        raise RuntimeError("FFMPEG_LICENSE_FILE must point to the verified FFmpeg LGPL license.")
+    dlls = sorted(ffmpeg.parent.glob("*.dll"))
+    if not dlls:
+        raise RuntimeError("Expected separate FFmpeg LGPL shared DLLs, not an unreviewed static build.")
     # Stage only backend source, never backend/.env or other user-generated files.
     with tempfile.TemporaryDirectory(prefix="sonicbrief-package-") as stage:
         staged_backend = Path(stage) / "backend"
@@ -58,6 +64,8 @@ def build() -> None:
             "--add-data", f"{staged_backend};backend",
             "--add-binary", f"{ffmpeg};.",
             "--add-binary", f"{ffprobe};.",
+            *[item for dll in dlls for item in ("--add-binary", f"{dll};.")],
+            "--add-data", f"{ffmpeg_license_path.resolve()};third_party/ffmpeg",
             "--add-data", f"{ROOT / 'LICENSE'};.",
             "--add-data", f"{ROOT / 'THIRD_PARTY_NOTICES.md'};.",
             # Runtime plugin loaders don't always appear in static import analysis.
