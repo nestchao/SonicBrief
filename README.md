@@ -270,8 +270,8 @@ MCP host can run:
 
 This **is not available from npm yet**. GitHub's portable build workflow
 (`.github/workflows/portable-mcp.yml`) creates the Windows ZIP,
-SHA-256 checksums, and an npm tarball with the verified ZIP digest. Releasing
-the tarball to npm is a separate manual step after testing. Do not publish
+SHA-256 checksums, and an npm tarball with the verified ZIP digest. The tagged workflow creates a **draft GitHub Release** for review; publishing
+it and releasing the matching npm tarball are separate manual steps after testing. Do not publish
 the checked-in npm folder as-is; its digest is intentionally empty.
 
 On first launch, the npm package fetches the checksum-pinned GitHub Release
