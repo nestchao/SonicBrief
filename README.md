@@ -317,8 +317,8 @@ Local Whisper keeps STT audio processing on the computer/container. If the conne
 
 SonicBrief's project-owned code is licensed under the [MIT License](LICENSE).
 Third-party dependencies and bundled binaries, including FFmpeg, retain their
-own licenses and distribution requirements. The portable release must include
-applicable third-party notices before public publication.
+own licenses and distribution requirements. See [third-party notices](THIRD_PARTY_NOTICES.md)
+and complete the distribution/source obligations before public publication.
 
 ## Development commands
 
