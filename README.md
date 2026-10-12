@@ -244,6 +244,46 @@ docker compose --profile gpu run --rm -T sonicbrief-mcp-gpu --self-test
 
 If `nvidia-smi` works inside an NVIDIA CUDA container but SonicBrief still reports `cuda_available: false`, the remaining issue is inside the CUDA/cuDNN/CTranslate2 runtime rather than Docker GPU passthrough.
 
+### Experimental portable Windows MCP (release packaging)
+
+A **Windows x64 CPU-only** distribution is being prepared for users who do
+not want Docker, Python, or FFmpeg installed on their PCs. The package will be
+delivered through an npm launcher, similar to Chrome DevTools MCP. **Node.js
+20.19+ and npm are still required.** Model weights download on first use.
+
+Once an official `mcp-v0.1.0` GitHub Release and the corresponding
+`@nestchao/sonicbrief-mcp` npm package have been published, a supported
+MCP host can run:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sonicbrief": {
+        "type": "local",
+        "command": ["npx", "-y", "@nestchao/sonicbrief-mcp@latest"]
+      }
+    }
+  }
+}
+```
+
+This **is not available from npm yet**. GitHub's portable build workflow
+(`.github/workflows/portable-mcp.yml`) creates the Windows ZIP,
+SHA-256 checksums, and an npm tarball with the verified ZIP digest. Releasing
+the tarball to npm is a separate manual step after testing. Do not publish
+the checked-in npm folder as-is; its digest is intentionally empty.
+
+On first launch, the npm package fetches the checksum-pinned GitHub Release
+under `%LOCALAPPDATA%\SonicBrief\runtime\`. Job history and model caches
+are preserved separately in `%LOCALAPPDATA%\SonicBrief\data` and
+`%LOCALAPPDATA%\SonicBrief\models`. It launches the local MCP over
+stdio and automatically starts/stops FastAPI. The portable CPU package does
+not require Docker Desktop, and its local SQLite database is separate from
+existing Docker volume data. Optional Gemini features still require users'
+own credentials. Compatible NVIDIA GPU runtime packaging is planned after
+the Windows CPU workflow is validated.
+
 ### Native MCP installation
 
 Docker is optional. If SonicBrief is already installed natively, configure the MCP host with:
