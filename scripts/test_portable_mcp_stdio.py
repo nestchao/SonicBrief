@@ -39,9 +39,9 @@ async def verify() -> None:
             if missing:
                 raise AssertionError(f"Portable MCP tools not registered: {sorted(missing)}")
             result = await asyncio.wait_for(session.call_tool("get_health", arguments={}), timeout=75)
-            if result.isError:
+            if result.is_error:
                 raise AssertionError(f"Portable MCP health tool returned error: {result}")
-            payload = result.structuredContent
+            payload = result.structured_content
             if not isinstance(payload, dict):
                 # Newer MCP implementations can return a nested result wrapper.
                 raise AssertionError(f"Unexpected MCP health structure: {result}")
