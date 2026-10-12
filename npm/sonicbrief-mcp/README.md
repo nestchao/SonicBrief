@@ -51,3 +51,9 @@ cd npm/sonicbrief-mcp
 npm test
 npm pack --dry-run
 ```
+
+## License
+
+The SonicBrief launcher is licensed under [MIT](LICENSE).
+Bundled third-party runtime components are distributed under their own terms;
+see the release notices when available.
