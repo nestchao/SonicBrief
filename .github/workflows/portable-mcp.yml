@@ -114,10 +114,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/mcp-v')
         shell: pwsh
         env:
-          GH_TOKEN: @GH_TOKEN@
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$env:GITHUB_REF_NAME" 
-            "build/release/sonicbrief-windows-x64-cpu.zip" 
-            "build/release/SHA256SUMS.txt" 
-            --title "SonicBrief MCP $env:GITHUB_REF_NAME (Windows CPU)" 
-            --generate-notes
+          gh release create "$env:GITHUB_REF_NAME" "build/release/sonicbrief-windows-x64-cpu.zip" "build/release/SHA256SUMS.txt" --title "SonicBrief MCP $env:GITHUB_REF_NAME (Windows CPU)" --generate-notes
