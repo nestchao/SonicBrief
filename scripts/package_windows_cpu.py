@@ -68,6 +68,7 @@ def build() -> None:
             "--add-data", f"{ffmpeg_license_path.resolve()};third_party/ffmpeg",
             "--add-data", f"{ROOT / 'LICENSE'};.",
             "--add-data", f"{ROOT / 'THIRD_PARTY_NOTICES.md'};.",
+            "--add-data", f"{ROOT / 'third_party' / 'python_licenses'};third_party/python_licenses",
             # Runtime plugin loaders don't always appear in static import analysis.
             "--hidden-import", "app",
             "--hidden-import", "config",
@@ -89,6 +90,8 @@ def build() -> None:
     executable = DIST / "SonicBrief-MCP" / "SonicBrief-MCP.exe"
     if not executable.is_file():
         raise RuntimeError(f"PyInstaller did not produce {executable}")
+    from collect_portable_licenses import main as collect_licenses
+    collect_licenses()
     print(f"Portable runtime built: {executable}")
 
 
