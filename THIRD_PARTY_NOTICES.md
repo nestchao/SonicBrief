@@ -52,6 +52,20 @@ For example:
 - ONNX Runtime v1.31.0 MIT: https://github.com/microsoft/onnxruntime/blob/v1.31.0/LICENSE
 - tokenizers v0.23.3 Apache-2.0: https://github.com/huggingface/tokenizers/blob/v0.23.3/LICENSE
 
+PyInstaller packages distribution metadata and many wheel license files in
+the runtime ZIP. The build now also creates
+`third_party/python/INVENTORY.json`, containing the exact packaged wheel
+versions, license metadata and included license-file paths, and fails when a
+distribution lacks both a bundled notice and an explicitly reviewed fallback.
+Version-pinned upstream license texts are included for CTranslate2 4.8.2,
+ONNX Runtime 1.31.0 and tokenizers 0.23.3 under
+`third_party/python_licenses/`. The corresponding CPython 3.11.9 license
+is included from the official CPython v3.11.9 source tree.
+
+This inventory is **not** a full native binary SBOM. Embedded third-party
+dependencies, linking obligations, binary source offers, and package provenance
+must still be reviewed before publishing.
+
 Whisper model weights are downloaded on first use, rather than shipped
 inside the portable Windows runtime; model-specific terms still matter.
 
