@@ -91,6 +91,14 @@ jobs:
           node npm/sonicbrief-mcp/bin/sonicbrief-mcp.mjs --self-test
           if ($LASTEXITCODE -ne 0) { throw "The npm launcher could not start the portable MCP." }
 
+      - name: End-to-end MCP handshake via Node launcher
+        shell: pwsh
+        run: |
+          $env:SONICBRIEF_MCP_BINARY = (Resolve-Path "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe").Path
+          $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP "SonicBriefMcpHandshakeData"
+          python scripts/test_portable_mcp_stdio.py
+          if ($LASTEXITCODE -ne 0) { throw "Portable MCP stdio integration failed." }
+
       - name: Create ZIP, SHA-256 and npm package
         shell: pwsh
         run: |
