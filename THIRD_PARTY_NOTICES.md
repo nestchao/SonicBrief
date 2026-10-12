@@ -1,52 +1,71 @@
-# Third-party components and release compliance
+# Third-party notices and release compliance
 
-SonicBrief's project-owned source code is MIT-licensed (see `LICENSE`). That
-license **does not replace the licenses** of bundled executables and Python
-libraries. These notices are informational and do not by themselves establish
-that a distributable build satisfies every license obligation.
+SonicBrief's original source code uses the [MIT License](LICENSE). Third-party
+libraries, executables, models and their licenses remain separate. These
+notices are a **release checklist**, not a claim of completed legal review.
 
-## FFmpeg / FFprobe (Windows portable CPU build)
+## FFmpeg / FFprobe (Windows x64 CPU portable build)
 
-- Project: FFmpeg — https://ffmpeg.org/
-- Windows binary distributor currently selected in our CI: Gyan Doshi
-  (Gyan.dev *release essentials*, installed by Chocolatey `ffmpeg`).
-- Build information: https://www.gyan.dev/ffmpeg/builds/
-- License of that distributor's static Windows builds: **GPL version 3**.
-- FFmpeg licensing information: https://ffmpeg.org/legal.html
-- GNU GPLv3 license text: https://www.gnu.org/licenses/gpl-3.0.html
-- Corresponding FFmpeg source: identify the **exact bundled build** using
-  `ffmpeg.exe -version` and obtain corresponding source from the distributor
-  and FFmpeg upstream. The source for a particular build must match that binary
-  and include any required patches and build instructions.
+The distributable CI build **no longer uses Gyan's GPL-enabled executable**.
+It uses the BtbN **LGPL-shared** Windows x64 build; the dynamic FFmpeg DLLs
+are included separately to preserve users' ability to replace those DLLs.
 
-Our packaged runtime invokes FFmpeg/FFprobe as standalone executables for
-transcoding and media probing. Whether this distribution meets GPL requirements
-(including delivery of license notices and complete corresponding source or a
-valid offer where applicable) must be verified **before public publication**.
-Publishing an MIT notice for SonicBrief does not make these binaries MIT.
+- Upstream: https://ffmpeg.org/
+- Binary distributor and reproducible build scripts: https://github.com/BtbN/FFmpeg-Builds
+- Source build: `autobuild-2026-09-30-13-08` from
+  https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08
+- Binary asset: `ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip`
+- Pinned SHA-256: `7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646`
+- FFmpeg code revision: `n9.0.2-17-g2a571b6068` (FFmpeg 9.0 development/release branch)
+- Runtime `ffmpeg -L` reports **GNU LGPL version 3 or later**.
+- The original archive's `LICENSE.txt` is bundled as
+  `third_party/ffmpeg/LICENSE.txt` in the generated ZIP.
+- The CI asserts SHA-256, absence of `--enable-gpl`, an LGPL `-L`
+  output, the presence of DLLs, and bundled license text before packaging.
+- FFmpeg project legal information: https://ffmpeg.org/legal.html
+- Complete corresponding source and build instructions should be made available
+  to recipients of the final binary distribution, using the exact upstream
+  revision, BtbN build scripts and all applicable transitive library sources.
 
-## Python/ML runtime
+The available FFmpeg license text and the ability to replace FFmpeg shared DLLs
+reduce barriers to LGPL compliance, but **source and transitive components
+still require a final review before public release**. SonicBrief's MIT License
+does not relicense FFmpeg, and this is not legal advice.
 
-The frozen Python runtime also redistributes third-party Python wheels and
-native libraries (including faster-whisper, CTranslate2, PyAV, ONNX Runtime,
-tokenizers, Hugging Face tooling, and their transitive dependencies). Individual
-licenses and accompanying notices must be reviewed and included as applicable.
+## Python / ML dependencies
 
-Optional Whisper model weights are fetched on first use rather than shipped in
-the Windows runtime. Review the model's license separately if future releases
-begin bundling model weights.
+The portable PyInstaller ZIP also redistributes the Python interpreter and
+native dependencies. The installed build contains Python distribution metadata
+(`*.dist-info`) for these components; the exact versions may vary between
+builds until transitive packages are pinned.
 
-## Release checklist
+Identified top-level dependencies include FastAPI, Uvicorn, python-multipart,
+python-dotenv, faster-whisper, PyAV, yt-dlp, google-genai, MCP SDK, and httpx.
+Important native/transitive libraries include CTranslate2, ONNX Runtime,
+tokenizers, NumPy and cryptography. Some licenses are MIT/Apache/BSD, but
+others have special notices and embedded third-party code.
 
-1. Record exact FFmpeg version/configuration, package provenance, licenses and
-   a way to fulfill corresponding source obligations.
-2. Audit the Python dependency list and native wheel licenses; retain required
-   notices and source/redistribution obligations.
-3. Ensure these notices, required full third-party license texts and source
-   information are available with the final ZIP; don't treat this placeholder
-   notice as a completed audit.
-4. Install the packaged zip on a clean Windows x64 machine without Python or
-   Docker, connect an MCP client, and run a real Whisper transcription.
-5. Only after these checks, publish the matching release ZIP and the npm
-   tarball containing its recorded SHA-256. Never publish a package with an
-   empty runtime manifest SHA-256.
+Where PyInstaller does not preserve a wheel's license file, verify the matching
+upstream project license for the **exact** binary version before publishing.
+For example:
+- CTranslate2 v4.8.2 MIT: https://github.com/OpenNMT/CTranslate2/blob/v4.8.2/LICENSE
+- ONNX Runtime v1.31.0 MIT: https://github.com/microsoft/onnxruntime/blob/v1.31.0/LICENSE
+- tokenizers v0.23.3 Apache-2.0: https://github.com/huggingface/tokenizers/blob/v0.23.3/LICENSE
+
+Whisper model weights are downloaded on first use, rather than shipped
+inside the portable Windows runtime; model-specific terms still matter.
+
+## Release gates
+
+1. Capture inventory of everything actually bundled (FFmpeg, DLLs, Python
+   wheels, native shared libraries), along with version and license notices.
+2. Include the applicable **full** license texts and copyright/notice files for
+   each redistributed component; validate corresponding source access and
+   LGPL obligations, including transitive libraries.
+3. Test the proposed npm package and its download SHA-256 with an actual
+   GitHub Release, not only via `SONICBRIEF_MCP_BINARY`.
+4. Test Windows x64 compatibility beyond the build runner; the current machine
+   was also tested with Python removed from the test-process `PATH`.
+5. Only then merge, tag, publish the versioned GitHub Release, and publish the
+   CI-generated checksum-pinned npm tarball. Never publish the checked-in
+   manifest with an empty SHA-256.
