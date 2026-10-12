@@ -152,6 +152,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'npm pack failed.' }
           Pop-Location
 
+      - name: Smoke-test generated npm tarball on Windows
+        shell: pwsh
+        run: |
+          $env:SONICBRIEF_MCP_BINARY = (Resolve-Path "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe").Path
+          $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP "SonicBriefNpmTarballData"
+          $tarball = (Get-ChildItem "build/release" -Filter "*.tgz" | Select-Object -First 1).FullName
+          if (!$tarball) { throw 'npm tarball was not produced.' }
+          npm exec --yes --package "$tarball" -- sonicbrief-mcp --self-test
+          if ($LASTEXITCODE -ne 0) { throw "The packed npm launcher could not start the portable MCP." }
+
       - name: Upload release candidates
         uses: actions/upload-artifact@v4
         with:
@@ -161,10 +171,10 @@ jobs:
             build/release/SHA256SUMS.txt
             build/release/*.tgz
 
-      - name: Publish tagged GitHub Release (npm publishing remains manual)
+      - name: Create tagged draft GitHub Release (publication remains manual)
         if: startsWith(github.ref, 'refs/tags/mcp-v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$env:GITHUB_REF_NAME" "build/release/sonicbrief-windows-x64-cpu.zip" "build/release/SHA256SUMS.txt" --title "SonicBrief MCP $env:GITHUB_REF_NAME (Windows CPU)" --generate-notes
+          gh release create "$env:GITHUB_REF_NAME" "build/release/sonicbrief-windows-x64-cpu.zip" "build/release/SHA256SUMS.txt" --title "SonicBrief MCP $env:GITHUB_REF_NAME (Windows CPU)" --generate-notes --draft
