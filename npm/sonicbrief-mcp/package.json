@@ -9,7 +9,8 @@
   "files": [
     "bin/",
     "runtime-manifest.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20.19.0"
@@ -20,7 +21,7 @@
   "cpu": [
     "x64"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": false,
   "repository": {
     "type": "git",
