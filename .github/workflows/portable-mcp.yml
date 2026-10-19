@@ -101,14 +101,66 @@ jobs:
           "FFMPEG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "FFMPEG_LICENSE_FILE=$license" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Build source-linked LGPL PyAV wheel (no upstream GPL codecs)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install "setuptools>=77,<85" "cython>=3.1,<4" "wheel>=0.45" "delvewheel>=1.8"
+          if ($LASTEXITCODE -ne 0) { throw "PyAV build tool installation failed" }
+          $source = Join-Path $env:RUNNER_TEMP 'pyav-upstream'
+          git clone --depth 1 --branch v18.1.0 https://github.com/PyAV-Org/PyAV.git $source
+          if ($LASTEXITCODE -ne 0) { throw "PyAV source checkout failed" }
+          $revision = (git -C $source rev-parse HEAD).Trim()
+          if ($revision -ne '7e3d950a8b72062502c1a60d672f8ca565313af5') {
+            throw "Unexpected PyAV source revision: $revision"
+          }
+          $ffmpegRoot = Split-Path $env:FFMPEG_DIR -Parent
+          if (!(Test-Path (Join-Path $ffmpegRoot 'include/libavcodec/avcodec.h'))) {
+            throw "Pinned LGPL FFmpeg development headers not found"
+          }
+          Push-Location $source
+          try {
+            python setup.py bdist_wheel "--ffmpeg-dir=$ffmpegRoot"
+            if ($LASTEXITCODE -ne 0) { throw "PyAV source build failed" }
+          } finally {
+            Pop-Location
+          }
+          $wheel = Get-ChildItem (Join-Path $source 'dist') -Filter '*.whl' | Select-Object -First 1
+          if (!$wheel) { throw "Built PyAV wheel missing" }
+          $wheelhouse = Join-Path $env:RUNNER_TEMP 'pyav-lgpl-wheelhouse'
+          New-Item -ItemType Directory -Force $wheelhouse | Out-Null
+          python -m delvewheel repair --add-path $env:FFMPEG_DIR --wheel-dir $wheelhouse $wheel.FullName
+          if ($LASTEXITCODE -ne 0) { throw "PyAV LGPL DLL bundling failed" }
+          $repaired = Get-ChildItem $wheelhouse -Filter '*.whl' | Select-Object -First 1
+          if (!$repaired) { throw "Repaired PyAV wheel missing" }
+          python -m pip install --force-reinstall --no-deps $repaired.FullName
+          if ($LASTEXITCODE -ne 0) { throw "Installing LGPL PyAV wheel failed" }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw "LGPL PyAV dependency check failed" }
+          @'
+          import io, wave
+          from faster_whisper.audio import decode_audio
+          with io.BytesIO() as wav_bytes:
+              with wave.open(wav_bytes, "wb") as wav:
+                  wav.setnchannels(1)
+                  wav.setsampwidth(2)
+                  wav.setframerate(16000)
+                  wav.writeframes(b"\0\0" * 16000)
+              wav_bytes.seek(0)
+              audio = decode_audio(wav_bytes, sampling_rate=16000)
+          if len(audio) != 16000:
+              raise RuntimeError("Source-built LGPL PyAV decode failed")
+          print("Source-built LGPL PyAV WAV decode passed.")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Source-built LGPL PyAV smoke test failed" }
+
       - name: Unit-test LGPL-only codec policy
         run: python -m unittest discover -s scripts -p test_check_portable_gpl_codecs.py
 
       - name: Build PyInstaller CPU runtime
         run: python scripts/package_windows_cpu.py
 
-      - name: Reject GPL-associated codecs in tagged LGPL-only releases
-        if: startsWith(github.ref, 'refs/tags/mcp-v')
+      - name: Reject GPL-associated codecs in LGPL-only portable runtime
         run: python scripts/check_portable_gpl_codecs.py build/portable/SonicBrief-MCP
 
       - name: Self-test packaged application (no Docker or Python environment at runtime)
