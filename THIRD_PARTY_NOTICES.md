@@ -66,6 +66,20 @@ This inventory is **not** a full native binary SBOM. Embedded third-party
 dependencies, linking obligations, binary source offers, and package provenance
 must still be reviewed before publishing.
 
+### Known GPL-associated native libraries in the release candidate
+
+A separate inspection of the Windows v0.1.0 PyInstaller ZIP found PyAV's
+bundled FFmpeg DLLs under `av.libs/`, including `libx264-*.dll` and
+`libx265-*.dll`. These are distinct from the independently bundled BtbN
+LGPL-shared `ffmpeg.exe`, `ffprobe.exe` and their DLLs. The GPL-associated
+libraries and their linkage require a separate redistribution/source review.
+**The existing ZIP is not approved for public distribution.**
+
+The tagged LGPL-only release workflow now fails when these codec DLLs are
+present, until an appropriately rebuilt and fully retested native dependency
+stack is supplied. See `third_party/PORTABLE_RELEASE_SOURCE_REVIEW.md` for
+the precise source and build provenance and the remaining release gates.
+
 Whisper model weights are downloaded on first use, rather than shipped
 inside the portable Windows runtime; model-specific terms still matter.
 
