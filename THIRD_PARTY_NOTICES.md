@@ -75,10 +75,16 @@ LGPL-shared `ffmpeg.exe`, `ffprobe.exe` and their DLLs. The GPL-associated
 libraries and their linkage require a separate redistribution/source review.
 **The existing ZIP is not approved for public distribution.**
 
-The tagged LGPL-only release workflow now fails when these codec DLLs are
-present, until an appropriately rebuilt and fully retested native dependency
-stack is supplied. See `third_party/PORTABLE_RELEASE_SOURCE_REVIEW.md` for
-the precise source and build provenance and the remaining release gates.
+The LGPL-only release workflow fails on those codec DLLs in both PR and tag
+builds. New Windows CPU build candidates now compile **PyAV 18.1.0 from pinned
+upstream source commit `7e3d950a8b72062502c1a60d672f8ca565313af5`**
+against the separately checksum-verified LGPL-shared FFmpeg 9 SDK, repair the
+wheel with those DLLs, then run its audio decode smoke test and the packaged
+DLL policy check. This avoids relying on the upstream PyAV binary wheel that
+includes GPL-associated codecs. This does **not** constitute final review of
+all PyAV, FFmpeg, or transitive native library license/source obligations.
+See `third_party/PORTABLE_RELEASE_SOURCE_REVIEW.md` for exact provenance
+and remaining gates.
 
 Whisper model weights are downloaded on first use, rather than shipped
 inside the portable Windows runtime; model-specific terms still matter.
