@@ -102,7 +102,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m pip install "faster-whisper==1.2.0"
+          python -m pip install "faster-whisper==1.2.0" "requests>=2.32,<3"
           if ($LASTEXITCODE -ne 0) { throw 'Could not install test dependencies' }
           $wheel = Get-ChildItem build/pyav-wheelhouse -Filter '*.whl' | Select-Object -First 1
           python -m pip install --force-reinstall --no-deps $wheel.FullName
