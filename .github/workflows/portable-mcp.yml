@@ -61,6 +61,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements.txt
           python -m pip install "pyinstaller>=6.14,<7"
+          # Keep the portable release on the license-reviewed native wheel.
+          python -m pip install "ctranslate2==4.8.2"
+          python -m pip check
 
       - name: Acquire checksum-pinned LGPL FFmpeg shared build
         shell: pwsh
