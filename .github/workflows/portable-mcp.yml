@@ -7,6 +7,9 @@ on:
       - "backend/**"
       - "scripts/package_windows_cpu.py"
       - "scripts/collect_portable_licenses.py"
+      - "scripts/audit_portable_release.py"
+      - "scripts/check_portable_gpl_codecs.py"
+      - "scripts/test_check_portable_gpl_codecs.py"
       - "third_party/**"
       - "scripts/test_portable_mcp_stdio.py"
       - "THIRD_PARTY_NOTICES.md"
@@ -98,8 +101,15 @@ jobs:
           "FFMPEG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "FFMPEG_LICENSE_FILE=$license" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Unit-test LGPL-only codec policy
+        run: python -m unittest discover -s scripts -p test_check_portable_gpl_codecs.py
+
       - name: Build PyInstaller CPU runtime
         run: python scripts/package_windows_cpu.py
+
+      - name: Reject GPL-associated codecs in tagged LGPL-only releases
+        if: startsWith(github.ref, 'refs/tags/mcp-v')
+        run: python scripts/check_portable_gpl_codecs.py build/portable/SonicBrief-MCP
 
       - name: Self-test packaged application (no Docker or Python environment at runtime)
         shell: pwsh
