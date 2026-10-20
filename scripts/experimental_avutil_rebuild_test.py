@@ -63,7 +63,7 @@ def required_imports_from_runtime(root: Path, target_name: str) -> dict[str, lis
     return needed
 
 
-def evaluate(root: Path, rebuilt: Path) -> dict:
+def evaluate(root: Path, rebuilt: Path, toolchain_dependencies: Path | None = None) -> dict:
     if not (root / "SonicBrief-MCP.exe").is_file():
         raise ValueError("Expected complete Portable MCP folder")
     private = list((root / "av.libs").glob("avutil-61-*.dll"))
@@ -77,7 +77,7 @@ def evaluate(root: Path, rebuilt: Path) -> dict:
     if MARKER not in rebuilt.read_bytes():
         raise ValueError("Modified-source marker missing from rebuilt avutil")
     original_exports, _ = pe_dlls(target)
-    new_exports, _ = pe_dlls(rebuilt)
+    new_exports, rebuilt_imports = pe_dlls(rebuilt)
     needed = required_imports_from_runtime(root, target.name)
     all_required = set().union(*[set(v) for v in needed.values()]) if needed else set()
     if not needed:
@@ -95,6 +95,21 @@ def evaluate(root: Path, rebuilt: Path) -> dict:
         shutil.copy2(rebuilt, candidate)
         if digest(candidate) != rebuilt_hash:
             raise ValueError("Replacement candidate hash mismatch")
+        test_only_runtime_files = []
+        if toolchain_dependencies is not None:
+            for name in sorted(rebuilt_imports):
+                # Never overwrite dependencies already present in the real release.
+                if (copied / name).exists() or (copied / "av.libs" / name).exists():
+                    continue
+                provided = toolchain_dependencies / name
+                if provided.is_file():
+                    extra_target = copied / "av.libs" / name
+                    shutil.copy2(provided, extra_target)
+                    test_only_runtime_files.append({
+                        "filename": name,
+                        "sha256": digest(extra_target),
+                        "source": "test-only MSYS2 MinGW compiler runtime",
+                    })
         # Confirm that the code loaded is the modified source, rather than
         # merely a same-ABI original bundled DLL elsewhere on the search path.
         with os.add_dll_directory(str(copied / "av.libs")), os.add_dll_directory(str(copied)):
@@ -133,6 +148,8 @@ def evaluate(root: Path, rebuilt: Path) -> dict:
         "original_exports_missing_in_rebuild": len(original_missing),
         "modified_version_marker_loaded": True,
         "isolated_mcp_self_test": True,
+        "test_only_external_runtime_dependencies": test_only_runtime_files,
+        "independently_built_dll_imports": sorted(rebuilt_imports),
         "legal_clearance": "NOT_CLEARED",
         "limitations": [
             "Only libavutil is independently recompiled; other six FFmpeg DLLs remain bundled.",
@@ -149,8 +166,10 @@ def main() -> None:
     p.add_argument("--runtime", required=True, type=Path)
     p.add_argument("--rebuilt-avutil", required=True, type=Path)
     p.add_argument("--output", required=True, type=Path)
+    p.add_argument("--test-toolchain-dependencies", type=Path)
     args = p.parse_args()
-    report = evaluate(args.runtime.resolve(), args.rebuilt_avutil.resolve())
+    report = evaluate(args.runtime.resolve(), args.rebuilt_avutil.resolve(),
+                      args.test_toolchain_dependencies.resolve() if args.test_toolchain_dependencies else None)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print("INDEPENDENT_AVUTIL_REBUILD_TEST_PASS", report["required_imported_exports_checked"],
