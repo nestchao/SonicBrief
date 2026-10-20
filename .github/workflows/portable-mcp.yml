@@ -20,6 +20,8 @@ on:
       - "scripts/test_audit_native_pe_imports.py"
       - "scripts/audit_ffmpeg_dll_pairs.py"
       - "scripts/test_audit_ffmpeg_dll_pairs.py"
+      - "scripts/smoke_test_ffmpeg_dll_replacement.py"
+      - "scripts/test_smoke_ffmpeg_dll_replacement.py"
       - "scripts/check_portable_gpl_codecs.py"
       - "scripts/test_check_portable_gpl_codecs.py"
       - "third_party/**"
@@ -60,6 +62,9 @@ jobs:
 
       - name: Test paired FFmpeg DLL section audit
         run: python -m unittest discover -s scripts -p test_audit_ffmpeg_dll_pairs.py
+
+      - name: Unit-test PyAV FFmpeg DLL replacement smoke tool
+        run: python -m unittest discover -s scripts -p test_smoke_ffmpeg_dll_replacement.py
 
       - name: Verify pinned FFmpeg static dependency notices
         run: |
@@ -219,6 +224,12 @@ jobs:
           & "build/portable/SonicBrief-MCP/SonicBrief-MCP.exe" --self-test
           if ($LASTEXITCODE -ne 0) { throw "The packaged MCP failed the self-test." }
 
+      - name: Smoke-test seven PyAV DLL replacements in isolated runtime copy
+        shell: pwsh
+        run: |
+          python scripts/smoke_test_ffmpeg_dll_replacement.py --runtime build/portable/SonicBrief-MCP --report build/release/FFMPEG_DLL_REPLACEMENT_SMOKE.json
+          if ($LASTEXITCODE -ne 0) { throw "Isolated PyAV DLL replacement smoke test failed." }
+
       - name: Smoke-test npm launcher against bundled runtime
         shell: pwsh
         run: |
@@ -285,6 +296,7 @@ jobs:
             build/release/*.tgz
             build/release/NATIVE_PE_IMPORT_GRAPH.json
             build/release/FFMPEG_PAIRED_DLL_SECTIONS.json
+            build/release/FFMPEG_DLL_REPLACEMENT_SMOKE.json
 
       - name: Create tagged draft GitHub Release (publication remains manual)
         if: startsWith(github.ref, 'refs/tags/mcp-v')
