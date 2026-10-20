@@ -64,9 +64,10 @@ prove** that the released BtbN build used the same patched binary.
 BtbN's VMAF recipe also edits
 `libvmaf/tools/meson.build` and makes `sed` substitutions in
 `libvmaf/src/svm.cpp` before compilation. Those modifications are
-recorded in the pinned BtbN recipe archive, but a complete patched
-source tree and matching build trace have not yet been independently
-verified.
+recorded in the pinned BtbN recipe archive. The exact source edits
+have now been independently replayed through Git Bash / GNU sed on the
+pinned VMAF files; see `third_party/VMAF_SOURCE_EDIT_REPLAY.md`.
+A matching compiled binary and actual build trace remain unverified.
 
 ## Known compliance questions remaining
 
