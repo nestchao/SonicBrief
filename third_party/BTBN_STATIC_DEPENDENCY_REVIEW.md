@@ -28,7 +28,7 @@ SHA-256 manifest, and bundled in **future** Portable Windows builds.
    objects statically linked into FFmpeg/PyAV libraries.
 2. **Corresponding source:** the six notice files are *not* source code
    archives, applicable patches, linker objects or reproduction instructions.
-   Obtain corresponding pinned source trees and applied patches where necessary.
+   Pinned LAME, dav1d, AOM and VMAF source snapshots were subsequently obtained and are recorded in `third_party/PINNED_NATIVE_SOURCE_SNAPSHOTS.md`; actual build/linkage and full compliance still need verification.
 3. **LAME LGPL linking:** the upstream `LICENSE` refers to LGPL and
    `COPYING` contains historical Library GPL version 2 terms. Determine
    the operative license and any obligations/compatibility for the exact
@@ -38,7 +38,7 @@ SHA-256 manifest, and bundled in **future** Portable Windows builds.
    it where required. Full compliance requires more than copying one file.
 5. **VMAF dependency:** AOM's build recipe explicitly depends on and uses
    VMAF, and its source is modified by BtbN's build script. Obtain and review
-   that exact source and source modification steps.
+   the exact source modifications and build trace. The pinned VMAF source has since been archived and an AOM patch-application test passed; see `third_party/PINNED_NATIVE_SOURCE_SNAPSHOTS.md`.
 6. **Other libraries:** dozens of other FFmpeg options and unrelated
    bundled Python-native dependencies still require review.
 7. **Existing Draft:** the `mcp-v0.1.1` ZIP predates this notice fix.
