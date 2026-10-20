@@ -1,0 +1,114 @@
+name: Experimental independent FFmpeg avutil replacement
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/experimental-avutil-rebuild.yml"
+      - "scripts/experimental_avutil_rebuild_test.py"
+      - "third_party/INDEPENDENT_AVUTIL_REBUILD_REVIEW.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  independent-avutil-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      FFMPEG_SOURCE_COMMIT: 2a571b606854520cf89804d8030c8b328e621689
+      SONICBRIEF_BASELINE_CI_RUN: "39442074179"
+      SONICBRIEF_REBUILD_MARKER: SONICBRIEF_INDEPENDENT_AVUTIL_REBUILD
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Windows MinGW compiler in isolated CI
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            git
+            make
+            diffutils
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkgconf
+
+      - name: Fetch exact source, make a traceable code modification, build libavutil independently
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p build/independent-avutil/source build/independent-avutil/evidence
+          git -C build/independent-avutil/source init -q
+          git -C build/independent-avutil/source fetch --depth 1 https://github.com/FFmpeg/FFmpeg.git "$FFMPEG_SOURCE_COMMIT"
+          git -C build/independent-avutil/source checkout --detach -q FETCH_HEAD
+          actual="$(git -C build/independent-avutil/source rev-parse HEAD)"
+          test "$actual" = "$FFMPEG_SOURCE_COMMIT"
+          cd build/independent-avutil/source
+          test "$(grep -c 'return FFMPEG_VERSION;' libavutil/version.c)" = 1
+          sed -i 's/return FFMPEG_VERSION;/return FFMPEG_VERSION " SONICBRIEF_INDEPENDENT_AVUTIL_REBUILD";/' libavutil/version.c
+          git diff -- libavutil/version.c > ../evidence/avutil-version-modification.patch
+          test -s ../evidence/avutil-version-modification.patch
+          ./configure \
+            --disable-programs --disable-doc --disable-everything \
+            --disable-autodetect --disable-asm --disable-network \
+            --disable-static --enable-shared --enable-version3 \
+            --disable-avcodec --disable-avdevice --disable-avfilter \
+            --disable-avformat --disable-swresample --disable-swscale \
+            --enable-avutil \
+            2>&1 | tee ../evidence/ffmpeg-configure.log
+          make -j2 libavutil/avutil-61.dll 2>&1 | tee ../evidence/ffmpeg-avutil-build.log
+          test -f libavutil/avutil-61.dll
+          cp libavutil/avutil-61.dll ../evidence/avutil-61-independent-modified.dll
+          cp config.h ../evidence/ffmpeg-config.h
+          sha256sum ../evidence/avutil-61-independent-modified.dll > ../evidence/independent-avutil-sha256.txt
+
+      - name: Download previous verified CI runtime for test only
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory build/independent-avutil/input -Force | Out-Null
+          gh run download $env:SONICBRIEF_BASELINE_CI_RUN --repo nestchao/SonicBrief --name portable-windows-mcp --dir build/independent-avutil/input
+          if ($LASTEXITCODE -ne 0) { throw "Unable to access approved previous CI runtime artifact." }
+          $zip = "build/independent-avutil/input/sonicbrief-windows-x64-cpu.zip"
+          if (!(Test-Path $zip)) { throw "Expected baseline runtime ZIP missing." }
+          $info = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksums = "build/independent-avutil/input/SHA256SUMS.txt"
+          if (!(Test-Path $checksums)) { throw "Baseline checksum manifest missing." }
+          $expected = (Get-Content $checksums -TotalCount 1).Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()
+          if ($info -ne $expected) { throw "Baseline runtime ZIP SHA-256 mismatch." }
+          "INPUT_ZIP_SHA256=$info" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          New-Item -ItemType Directory build/independent-avutil/input/runtime -Force | Out-Null
+          Expand-Archive -Path $zip -DestinationPath build/independent-avutil/input/runtime
+          if (!(Test-Path build/independent-avutil/input/runtime/SonicBrief-MCP.exe)) {
+            throw "Baseline ZIP has unexpected layout."
+          }
+
+      - name: Verify imported symbols and execute independently modified avutil
+        shell: pwsh
+        run: |
+          python -m pip install "pefile==2024.8.26"
+          if ($LASTEXITCODE -ne 0) { throw "pefile install failed" }
+          python scripts/experimental_avutil_rebuild_test.py --runtime build/independent-avutil/input/runtime --rebuilt-avutil build/independent-avutil/evidence/avutil-61-independent-modified.dll --output build/independent-avutil/evidence/INDEPENDENT_AVUTIL_TEST.json
+          if ($LASTEXITCODE -ne 0) { throw "Independent modified LGPL avutil load/replacement test failed." }
+
+      - name: Save exact source and compiled test evidence (not a public binary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-avutil-rebuild-evidence
+          retention-days: 14
+          path: |
+            build/independent-avutil/evidence/avutil-version-modification.patch
+            build/independent-avutil/evidence/independent-avutil-sha256.txt
+            build/independent-avutil/evidence/INDEPENDENT_AVUTIL_TEST.json
+            build/independent-avutil/evidence/ffmpeg-configure.log
+            build/independent-avutil/evidence/ffmpeg-avutil-build.log
+          if-no-files-found: warn
