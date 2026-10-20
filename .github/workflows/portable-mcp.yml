@@ -16,6 +16,8 @@ on:
       - "scripts/test_audit_ffmpeg_build_recipe.py"
       - "scripts/audit_vmaf_source_edits.py"
       - "scripts/test_audit_vmaf_source_edits.py"
+      - "scripts/audit_native_pe_imports.py"
+      - "scripts/test_audit_native_pe_imports.py"
       - "scripts/check_portable_gpl_codecs.py"
       - "scripts/test_check_portable_gpl_codecs.py"
       - "third_party/**"
@@ -50,6 +52,9 @@ jobs:
 
       - name: Test VMAF pinned source-edit replay
         run: python -m unittest discover -s scripts -p test_audit_vmaf_source_edits.py
+
+      - name: Test native PE import graph audit
+        run: python -m unittest discover -s scripts -p test_audit_native_pe_imports.py
 
       - name: Verify pinned FFmpeg static dependency notices
         run: |
@@ -245,6 +250,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'npm pack failed.' }
           Pop-Location
 
+      - name: Audit exact Windows ZIP PE import graph
+        shell: pwsh
+        run: |
+          python -m pip install "pefile==2024.8.26"
+          if ($LASTEXITCODE -ne 0) { throw "pefile scanner installation failed." }
+          python scripts/audit_native_pe_imports.py --zip build/release/sonicbrief-windows-x64-cpu.zip --output build/release/NATIVE_PE_IMPORT_GRAPH.json
+          if ($LASTEXITCODE -ne 0) { throw "Windows PE import graph audit failed." }
+
       - name: Smoke-test generated npm tarball on Windows
         shell: pwsh
         run: |
@@ -263,6 +276,7 @@ jobs:
             build/release/*.zip
             build/release/SHA256SUMS.txt
             build/release/*.tgz
+            build/release/NATIVE_PE_IMPORT_GRAPH.json
 
       - name: Create tagged draft GitHub Release (publication remains manual)
         if: startsWith(github.ref, 'refs/tags/mcp-v')
