@@ -8,8 +8,8 @@ import {
 const runtimeManifest = {
   platform: 'win32',
   arch: 'x64',
-  runtimeVersion: '0.1.0',
-  url: 'https://github.com/nestchao/SonicBrief/releases/download/mcp-v0.1.0/sonicbrief-windows-x64-cpu.zip',
+  runtimeVersion: '0.1.1',
+  url: 'https://github.com/nestchao/SonicBrief/releases/download/mcp-v0.1.1/sonicbrief-windows-x64-cpu.zip',
   sha256: 'a'.repeat(64),
 };
 
