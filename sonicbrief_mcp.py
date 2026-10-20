@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 import httpx
 from mcp.server import MCPServer
 
+from backend_startup_timeout import backend_startup_timeout_seconds
+
 # PyInstaller bundles the backend beside the executable. The regular source
 # layout continues to work unchanged for Docker and native Python installs.
 FROZEN = bool(getattr(sys, "frozen", False))
@@ -163,7 +165,8 @@ def _ensure_backend() -> None:
             )
             _BACKEND_STARTED_BY_MCP = True
 
-        deadline = time.monotonic() + 30
+        startup_timeout = backend_startup_timeout_seconds(FROZEN)
+        deadline = time.monotonic() + startup_timeout
         while time.monotonic() < deadline:
             if _BACKEND_PROCESS.poll() is not None:
                 exit_code = _BACKEND_PROCESS.returncode
@@ -178,7 +181,11 @@ def _ensure_backend() -> None:
             time.sleep(0.25)
 
         _stop_managed_backend()
-        raise RuntimeError("Timed out while automatically starting the local SonicBrief backend.")
+        raise RuntimeError(
+            f"Timed out after {startup_timeout:g} seconds while automatically starting "
+            "the local SonicBrief backend. On slower Windows machines, configure "
+            "SONICBRIEF_BACKEND_STARTUP_TIMEOUT_SECONDS (5 to 300)."
+        )
 
 
 def _api_request(
