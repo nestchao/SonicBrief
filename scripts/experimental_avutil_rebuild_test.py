@@ -96,24 +96,53 @@ def evaluate(root: Path, rebuilt: Path, toolchain_dependencies: Path | None = No
         if digest(candidate) != rebuilt_hash:
             raise ValueError("Replacement candidate hash mismatch")
         test_only_runtime_files = []
+        missing_dynamic_imports = []
         if toolchain_dependencies is not None:
-            for name in sorted(rebuilt_imports):
-                # Never overwrite dependencies already present in the real release.
-                if (copied / name).exists() or (copied / "av.libs" / name).exists():
+            # A MinGW runtime DLL can itself depend on additional MinGW DLLs.
+            # Recursively stage ONLY DLLs imported by our independently built
+            # candidate or its toolchain runtime into the private test copy.
+            available_toolchain = {
+                entry.name.lower(): entry
+                for entry in toolchain_dependencies.glob("*.dll")
+                if entry.is_file()
+            }
+            pending = sorted(rebuilt_imports)
+            visited = set()
+            while pending:
+                imported_name = pending.pop(0).lower()
+                if imported_name in visited:
                     continue
-                provided = toolchain_dependencies / name
-                if provided.is_file():
-                    extra_target = copied / "av.libs" / name
-                    shutil.copy2(provided, extra_target)
-                    test_only_runtime_files.append({
-                        "filename": name,
-                        "sha256": digest(extra_target),
-                        "source": "test-only MSYS2 MinGW compiler runtime",
-                    })
+                visited.add(imported_name)
+                if ((copied / imported_name).is_file()
+                        or (copied / "av.libs" / imported_name).is_file()):
+                    continue
+                source = available_toolchain.get(imported_name)
+                if source is None:
+                    missing_dynamic_imports.append(imported_name)
+                    continue
+                extra_target = copied / "av.libs" / source.name
+                shutil.copy2(source, extra_target)
+                test_only_runtime_files.append({
+                    "filename": source.name,
+                    "sha256": digest(extra_target),
+                    "source": "test-only MSYS2 MinGW compiler runtime",
+                })
+                _exports, indirect = pe_dlls(source)
+                pending.extend(import_name for import_name in indirect
+                               if import_name not in visited)
         # Confirm that the code loaded is the modified source, rather than
         # merely a same-ABI original bundled DLL elsewhere on the search path.
         with os.add_dll_directory(str(copied / "av.libs")), os.add_dll_directory(str(copied)):
-            lib = ctypes.WinDLL(str(candidate))
+            try:
+                lib = ctypes.WinDLL(str(candidate))
+            except OSError as exc:
+                raise RuntimeError(
+                    'Independently rebuilt avutil could not be loaded; '
+                    f'candidate_imports={sorted(rebuilt_imports)}; '
+                    f'test_toolchain_dlls={[x["filename"] for x in test_only_runtime_files]}; '
+                    f'not_in_candidate_bundle_or_mingw={sorted(missing_dynamic_imports)}; '
+                    f'win_loader_error={exc}'
+                ) from exc
             info = lib.av_version_info
             info.restype = ctypes.c_char_p
             loaded_version = info()
