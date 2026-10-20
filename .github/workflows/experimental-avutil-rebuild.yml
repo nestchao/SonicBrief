@@ -37,6 +37,7 @@ jobs:
             make
             diffutils
             mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-amf-headers
             mingw-w64-x86_64-pkgconf
 
       - name: Fetch exact source, make a traceable code modification, build libavutil independently
@@ -58,6 +59,7 @@ jobs:
             --disable-programs --disable-doc --disable-everything \
             --disable-autodetect --disable-asm --disable-network \
             --disable-static --enable-shared --enable-version3 \
+            --enable-amf \
             --disable-avcodec --disable-avdevice --disable-avfilter \
             --disable-avformat --disable-swresample --disable-swscale \
             --enable-avutil \

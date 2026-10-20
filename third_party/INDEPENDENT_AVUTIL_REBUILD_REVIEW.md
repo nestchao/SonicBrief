@@ -23,8 +23,17 @@ pinned upstream FFmpeg commit, and changes just one function in
 `SONICBRIEF_INDEPENDENT_AVUTIL_REBUILD` to the result of
 `av_version_info()`, leaving all existing function signatures alone.
 
+The first CI run successfully compiled the modified DLL but the ABI
+checker rejected it because seven AMF-related libavutil functions imported
+by the existing FFmpeg libraries were absent (`av_amf_*` and
+`av_av_to_amf_format`). This is a meaningful compatibility failure,
+not a passing runtime replacement. The experiment therefore enables
+`--enable-amf` and installs the MSYS2 AMF **headers** for a subsequent
+attempt; its actual load and runtime compatibility remain to be tested.
+
 The compilation uses a **minimal LGPLv3 / shared-library configuration**,
-with optional codecs, programs and extraneous libraries disabled. This
+with optional codecs, programs and extraneous libraries disabled except
+for the necessary AMF hardware API exports. This
 is **deliberately not claimed to reproduce** BtbN's full build flags.
 The exact applied source patch, configure/build logs, compiled DLL hash
 and compatibility-test JSON are retained as a private CI test artifact.
