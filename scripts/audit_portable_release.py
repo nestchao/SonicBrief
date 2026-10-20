@@ -138,7 +138,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--zip", type=Path, required=True)
     p.add_argument("--npm-tgz", type=Path, required=True)
-    p.add_argument("--tag", default="mcp-v0.1.0")
+    p.add_argument("--tag", required=True, help="Exact release tag, e.g. mcp-v0.1.1")
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
     data = make_report(args.zip, args.npm_tgz, args.tag)
