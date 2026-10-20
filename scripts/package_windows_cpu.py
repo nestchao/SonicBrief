@@ -38,6 +38,9 @@ def build() -> None:
     ffmpeg_license_path = Path(os.environ.get("FFMPEG_LICENSE_FILE", ""))
     if not ffmpeg_license_path.is_file():
         raise RuntimeError("FFMPEG_LICENSE_FILE must point to the verified FFmpeg LGPL license.")
+    from check_btbn_static_licenses import verify_license_bundle
+    third_party_notices = ROOT / "third_party" / "btbn_static_licenses"
+    verify_license_bundle(third_party_notices)
     dlls = sorted(ffmpeg.parent.glob("*.dll"))
     if not dlls:
         raise RuntimeError("Expected separate FFmpeg LGPL shared DLLs, not an unreviewed static build.")
@@ -66,6 +69,7 @@ def build() -> None:
             "--add-binary", f"{ffprobe};.",
             *[item for dll in dlls for item in ("--add-binary", f"{dll};.")],
             "--add-data", f"{ffmpeg_license_path.resolve()};third_party/ffmpeg",
+            "--add-data", f"{third_party_notices};third_party/btbn_static_licenses",
             "--add-data", f"{ROOT / 'LICENSE'};.",
             "--add-data", f"{ROOT / 'THIRD_PARTY_NOTICES.md'};.",
             "--add-data", f"{ROOT / 'third_party' / 'python_licenses'};third_party/python_licenses",

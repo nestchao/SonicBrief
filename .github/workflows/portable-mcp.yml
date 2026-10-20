@@ -10,6 +10,8 @@ on:
       - "scripts/package_windows_cpu.py"
       - "scripts/collect_portable_licenses.py"
       - "scripts/audit_portable_release.py"
+      - "scripts/check_btbn_static_licenses.py"
+      - "scripts/test_check_btbn_static_licenses.py"
       - "scripts/audit_ffmpeg_build_recipe.py"
       - "scripts/test_audit_ffmpeg_build_recipe.py"
       - "scripts/check_portable_gpl_codecs.py"
@@ -43,6 +45,11 @@ jobs:
           python-version: "3.11"
       - name: Unit-test FFmpeg recipe evidence audit
         run: python -m unittest discover -s scripts -p test_audit_ffmpeg_build_recipe.py
+
+      - name: Verify pinned FFmpeg static dependency notices
+        run: |
+          python -m unittest discover -s scripts -p test_check_btbn_static_licenses.py
+          python scripts/check_btbn_static_licenses.py
 
   windows-cpu:
     needs: launcher-tests

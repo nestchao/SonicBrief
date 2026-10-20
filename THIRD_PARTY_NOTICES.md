@@ -27,6 +27,23 @@ are included separately to preserve users' ability to replace those DLLs.
   to recipients of the final binary distribution, using the exact upstream
   revision, BtbN build scripts and all applicable transitive library sources.
 
+### Included pinned notices for statically linked external libraries
+
+The future Windows Portable package now includes version-pinned upstream license
+materials for LAME, dav1d, AOM and VMAF under
+`third_party/btbn_static_licenses/`. The exact revisions, upstream retrieval
+URLs and SHA-256 hashes are recorded in that directory's `MANIFEST.json`.
+The package must include both AOM's software `LICENSE` and separate
+`PATENTS` patent license, as well as LAME's `LICENSE` and historical
+`COPYING` (GNU **Library** General Public License v2) files. CI blocks
+missing or modified notice files.
+
+These are **not** complete corresponding-source archives or proof of legal
+compliance: LAME's static linking, AOM's transitive VMAF dependency, the
+FFmpeg build toolchain, all other enabled libraries and users' ability to
+replace LGPL-covered code require further examination. The earlier
+`mcp-v0.1.1` Draft ZIP predates these changes and must not be published.
+
 The available FFmpeg license text and the ability to replace FFmpeg shared DLLs
 reduce barriers to LGPL compliance, but **source and transitive components
 still require a final review before public release**. SonicBrief's MIT License
