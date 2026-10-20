@@ -7,6 +7,9 @@ runtime from GitHub Releases, caches it under
 
 Requirements: Node.js 20.19+ and Windows x64. **No Docker, Python or FFmpeg
 installation is needed** after the portable runtime has been published.
+On slower Windows computers, initial backend startup may need extra time.
+The portable launcher allows 90 seconds by default; adjust using the
+`SONICBRIEF_BACKEND_STARTUP_TIMEOUT_SECONDS` environment variable (5–300).
 Whisper model weights are downloaded separately on first transcription. CPU
 transcription is supported in this initial release; GPU support is planned.
 

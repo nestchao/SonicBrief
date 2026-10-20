@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "sonicbrief_mcp.py"
+      - "backend_startup_timeout.py"
+      - "scripts/test_backend_startup_timeout.py"
       - "backend/**"
       - "scripts/package_windows_cpu.py"
       - "scripts/collect_portable_licenses.py"
@@ -156,6 +158,9 @@ jobs:
 
       - name: Unit-test LGPL-only codec policy
         run: python -m unittest discover -s scripts -p test_check_portable_gpl_codecs.py
+
+      - name: Unit-test packaged backend startup timeout
+        run: python -m unittest discover -s scripts -p test_backend_startup_timeout.py
 
       - name: Build PyInstaller CPU runtime
         run: python scripts/package_windows_cpu.py
