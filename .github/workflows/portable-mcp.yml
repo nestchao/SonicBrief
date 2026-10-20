@@ -180,6 +180,9 @@ jobs:
       - name: Build PyInstaller CPU runtime
         run: python scripts/package_windows_cpu.py
 
+      - name: Verify pinned notices inside packaged runtime
+        run: python scripts/check_btbn_static_licenses.py --directory build/portable/SonicBrief-MCP/third_party/btbn_static_licenses
+
       - name: Reject GPL-associated codecs in LGPL-only portable runtime
         run: python scripts/check_portable_gpl_codecs.py build/portable/SonicBrief-MCP
 
