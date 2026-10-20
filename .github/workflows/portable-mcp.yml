@@ -18,6 +18,8 @@ on:
       - "scripts/test_audit_vmaf_source_edits.py"
       - "scripts/audit_native_pe_imports.py"
       - "scripts/test_audit_native_pe_imports.py"
+      - "scripts/audit_ffmpeg_dll_pairs.py"
+      - "scripts/test_audit_ffmpeg_dll_pairs.py"
       - "scripts/check_portable_gpl_codecs.py"
       - "scripts/test_check_portable_gpl_codecs.py"
       - "third_party/**"
@@ -55,6 +57,9 @@ jobs:
 
       - name: Test native PE import graph audit
         run: python -m unittest discover -s scripts -p test_audit_native_pe_imports.py
+
+      - name: Test paired FFmpeg DLL section audit
+        run: python -m unittest discover -s scripts -p test_audit_ffmpeg_dll_pairs.py
 
       - name: Verify pinned FFmpeg static dependency notices
         run: |
@@ -257,6 +262,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "pefile scanner installation failed." }
           python scripts/audit_native_pe_imports.py --zip build/release/sonicbrief-windows-x64-cpu.zip --output build/release/NATIVE_PE_IMPORT_GRAPH.json
           if ($LASTEXITCODE -ne 0) { throw "Windows PE import graph audit failed." }
+          python scripts/audit_ffmpeg_dll_pairs.py --zip build/release/sonicbrief-windows-x64-cpu.zip --output build/release/FFMPEG_PAIRED_DLL_SECTIONS.json
+          if ($LASTEXITCODE -ne 0) { throw "Paired FFmpeg DLL section audit failed." }
 
       - name: Smoke-test generated npm tarball on Windows
         shell: pwsh
@@ -277,6 +284,7 @@ jobs:
             build/release/SHA256SUMS.txt
             build/release/*.tgz
             build/release/NATIVE_PE_IMPORT_GRAPH.json
+            build/release/FFMPEG_PAIRED_DLL_SECTIONS.json
 
       - name: Create tagged draft GitHub Release (publication remains manual)
         if: startsWith(github.ref, 'refs/tags/mcp-v')
