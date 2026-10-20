@@ -1,0 +1,54 @@
+{
+  "schema": "sonicbrief-btbn-static-license-evidence-v1",
+  "status": "license notices verified at pinned source versions; NOT complete sources or compliance approval",
+  "btbn_recipe_commit": "6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b",
+  "entries": [
+    {
+      "path": "lame/LICENSE",
+      "upstream_url": "https://svn.code.sf.net/p/lame/svn/!svn/bc/6835/trunk/lame/LICENSE",
+      "source_revision": "6835",
+      "sha256": "5c1f8d44f1eacbea3e1c31ff6ee11a4e1690ccbed4ee4af16de3b6eb61dc69a8",
+      "bytes": 503
+    },
+    {
+      "path": "lame/COPYING",
+      "upstream_url": "https://svn.code.sf.net/p/lame/svn/!svn/bc/6835/trunk/lame/COPYING",
+      "source_revision": "6835",
+      "sha256": "e64f9c5a18f56828c10a575df13ade641aa3af4512a7afe6c411256943b57aaf",
+      "bytes": 25281
+    },
+    {
+      "path": "dav1d/COPYING",
+      "upstream_url": "https://raw.githubusercontent.com/videolan/dav1d/9711965b60bb692ae24004659acf61f5c7d9ed61/COPYING",
+      "source_revision": "9711965b60bb692ae24004659acf61f5c7d9ed61",
+      "sha256": "dd92c3c2247c5651606fc23a5e2d6a1ebc5ace9a3e49cbde0e12f05ad1cb1ee5",
+      "bytes": 1317
+    },
+    {
+      "path": "aom/LICENSE",
+      "upstream_url": "https://aomedia.googlesource.com/aom/+/b4ce2cd097b00921b0327bfb5f07b5f8361ade99/LICENSE?format=TEXT",
+      "source_revision": "b4ce2cd097b00921b0327bfb5f07b5f8361ade99",
+      "sha256": "4764a286d8b2faeaf42f4418e7d7a28d58fc8fd4d00a3d0a7f44b0a4099de7f2",
+      "bytes": 1316
+    },
+    {
+      "path": "aom/PATENTS",
+      "upstream_url": "https://aomedia.googlesource.com/aom/+/b4ce2cd097b00921b0327bfb5f07b5f8361ade99/PATENTS?format=TEXT",
+      "source_revision": "b4ce2cd097b00921b0327bfb5f07b5f8361ade99",
+      "sha256": "661fb8e504744e95587b556b94a58343448300606a41bea8c7a9b97125696e61",
+      "bytes": 5701
+    },
+    {
+      "path": "vmaf/LICENSE",
+      "upstream_url": "https://raw.githubusercontent.com/Netflix/vmaf/86da14d0306a138fd3f01319860b905169746516/LICENSE",
+      "source_revision": "86da14d0306a138fd3f01319860b905169746516",
+      "sha256": "a6fdb51d02b9dfe198e55534bb8047fe6d756eda117f4ff83de98f92c1952710",
+      "bytes": 2833
+    }
+  ],
+  "limitations": [
+    "Upstream pinned license text is not the complete corresponding source or exact original build trace.",
+    "An actual binary release also needs applicable sources, patches, linking and relinking analysis.",
+    "Other FFmpeg and non-FFmpeg dependencies remain unaudited."
+  ]
+}

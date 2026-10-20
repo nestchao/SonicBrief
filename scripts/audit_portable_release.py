@@ -34,6 +34,13 @@ REQUIRED = {
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "third_party/ffmpeg/LICENSE.txt",
+    "third_party/btbn_static_licenses/MANIFEST.json",
+    "third_party/btbn_static_licenses/aom/LICENSE",
+    "third_party/btbn_static_licenses/aom/PATENTS",
+    "third_party/btbn_static_licenses/dav1d/COPYING",
+    "third_party/btbn_static_licenses/lame/LICENSE",
+    "third_party/btbn_static_licenses/lame/COPYING",
+    "third_party/btbn_static_licenses/vmaf/LICENSE",
     "third_party/python/INVENTORY.json",
     "third_party/python_licenses/cpython-3.11.9/LICENSE",
 }
@@ -86,6 +93,13 @@ def make_report(zip_path: Path, tgz_path: Path, tag: str) -> dict:
             raise ValueError("Python license inventory reports missing license files")
         if len(inventory.get("packages", [])) < 10:
             raise ValueError("Suspiciously small Python license inventory")
+        notice_manifest = json.loads(
+            archive.read("third_party/btbn_static_licenses/MANIFEST.json")
+        )
+        for entry in notice_manifest["entries"]:
+            target = "third_party/btbn_static_licenses/" + entry["path"]
+            if target not in names or sha256_zip_entry(archive, target) != entry["sha256"]:
+                raise ValueError("Bundled pinned third-party license checksum mismatch: " + target)
         license_text = archive.read("third_party/ffmpeg/LICENSE.txt").decode("utf-8", errors="replace")
         if "GNU LESSER GENERAL PUBLIC LICENSE" not in license_text:
             raise ValueError("Expected FFmpeg LGPLv3 license text absent")
