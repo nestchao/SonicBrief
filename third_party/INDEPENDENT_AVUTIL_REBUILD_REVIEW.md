@@ -23,13 +23,24 @@ pinned upstream FFmpeg commit, and changes just one function in
 `SONICBRIEF_INDEPENDENT_AVUTIL_REBUILD` to the result of
 `av_version_info()`, leaving all existing function signatures alone.
 
-The first CI run successfully compiled the modified DLL but the ABI
-checker rejected it because seven AMF-related libavutil functions imported
-by the existing FFmpeg libraries were absent (`av_amf_*` and
-`av_av_to_amf_format`). This is a meaningful compatibility failure,
-not a passing runtime replacement. The experiment therefore enables
-`--enable-amf` and installs the MSYS2 AMF **headers** for a subsequent
-attempt; its actual load and runtime compatibility remain to be tested.
+The first CI run compiled the modified DLL but the ABI checker rejected
+it because seven AMF-related imported functions were missing. Adding
+`--enable-amf` and MSYS2 AMF headers resolved that symbol mismatch.
+
+The next CI runs encountered missing MinGW runtime dependencies. By
+recording the **actual** compiler location (`D:\\a\\_temp\\msys64\\mingw64\\bin`)
+and recursively staging only the test candidate's required toolchain DLLs
+in the isolated copy, the modified `libavutil` **loaded successfully**
+and its modified `av_version_info()` marker was verified.
+
+However, CI run [#39460619878](https://github.com/nestchao/SonicBrief/actions/runs/39460619878)
+then failed on the real Portable backend's `/api/self-test/audio-decode`
+HTTP 500 response. This is a real compatibility/runtime failure **after**
+the independent DLL was loaded, not an approved relinking result. The
+failure also surfaced a Windows temporary-file cleanup lock, which is
+secondary to the backend decoder failure. Further diagnostic evidence
+is required to determine whether the minimal independent FFmpeg build
+is ABI/feature-compatible with the PyAV decoder.
 
 The compilation uses a **minimal LGPLv3 / shared-library configuration**,
 with optional codecs, programs and extraneous libraries disabled except
@@ -48,10 +59,12 @@ then runs the isolated Portable executable's `--self-test`.
 
 ## Interpret the results narrowly
 
-A successful build and test would demonstrate **one** independently
-compiled and modified `libavutil` binary is loadable and supports the
-tested runtime self-test. This would be stronger than merely renaming
-two identical-release DLLs. However, the independently rebuilt variant
+The current experiment now demonstrates that one independently compiled,
+source-modified `libavutil` DLL can be **loaded by the Windows loader**
+with explicit test-only MinGW dependencies and its modified version function
+can execute. It **has not passed** the real runtime audio decoder self-test.
+This is stronger than renaming same-build DLLs but not evidence of
+compatible end-to-end replacement or full LGPL compliance. However, the independently rebuilt variant
 might omit optional exports of the original DLL, or require alternate
 MinGW runtime DLLs; the test explicitly records such failures rather
 than papering over them.
