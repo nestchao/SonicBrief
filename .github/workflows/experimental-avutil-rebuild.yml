@@ -51,6 +51,7 @@ jobs:
           actual="$(git -C build/independent-avutil/source rev-parse HEAD)"
           test "$actual" = "$FFMPEG_SOURCE_COMMIT"
           cd build/independent-avutil/source
+          cygpath -w "$(dirname "$(command -v gcc)")" > ../evidence/mingw-bin-path.txt
           test "$(grep -c 'return FFMPEG_VERSION;' libavutil/version.c)" = 1
           sed -i 's/return FFMPEG_VERSION;/return FFMPEG_VERSION " SONICBRIEF_INDEPENDENT_AVUTIL_REBUILD";/' libavutil/version.c
           git diff -- libavutil/version.c > ../evidence/avutil-version-modification.patch
@@ -98,8 +99,11 @@ jobs:
         run: |
           python -m pip install "pefile==2024.8.26"
           if ($LASTEXITCODE -ne 0) { throw "pefile install failed" }
-          $mingwBin = 'C:\msys64\mingw64\bin'
-          if (!(Test-Path $mingwBin)) { throw "MSYS2 MinGW runtime directory absent: $mingwBin" }
+          $mingwBin = (Get-Content build/independent-avutil/evidence/mingw-bin-path.txt -Raw).Trim()
+          if (!(Test-Path (Join-Path $mingwBin 'libwinpthread-1.dll'))) {
+            throw "The real compiler DLL directory lacks libwinpthread-1.dll: $mingwBin"
+          }
+          Write-Host "Rebuilt DLL compiler runtime directory: $mingwBin"
           python scripts/experimental_avutil_rebuild_test.py --runtime build/independent-avutil/input/runtime --rebuilt-avutil build/independent-avutil/evidence/avutil-61-independent-modified.dll --test-toolchain-dependencies $mingwBin --output build/independent-avutil/evidence/INDEPENDENT_AVUTIL_TEST.json
           if ($LASTEXITCODE -ne 0) { throw "Independent modified LGPL avutil load/replacement test failed." }
 
