@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SonicBrief</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f6fb; --fg: #161c2a; --muted: #64748b; --accent: #6a4be0; --bad: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1220; --fg: #e5e9f4; --muted: #94a3b8; --accent: #8f7bff; --bad: #f87171; }
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; place-items: center; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  main { text-align: center; max-width: 520px; padding: 24px; }
+  .spinner {
+    width: 38px; height: 38px; margin: 0 auto 20px; border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    border-top-color: var(--accent); animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { margin: 0 0 6px; font-size: 22px; }
+  p { margin: 0; color: var(--muted); }
+  #error { margin-top: 14px; color: var(--bad); white-space: pre-wrap; text-align: left; }
+  .failed .spinner { display: none; }
+</style>
+</head>
+<body>
+<main id="box">
+  <div class="spinner" aria-hidden="true"></div>
+  <h1>SonicBrief</h1>
+  <p id="status" role="status">Starting…</p>
+  <p id="error" role="alert"></p>
+</main>
+<script>
+  // Called by the desktop shell (Rust) while it starts the local server.
+  window.__status = (text) => { document.getElementById("status").textContent = text; };
+  window.__error = (text) => {
+    document.getElementById("box").classList.add("failed");
+    document.getElementById("status").textContent = "SonicBrief could not start.";
+    document.getElementById("error").textContent = text;
+  };
+</script>
+</body>
+</html>

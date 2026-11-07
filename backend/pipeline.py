@@ -115,6 +115,9 @@ _SOURCE_LABELS = {
     "twitter": "X / Twitter",
     "soundcloud": "SoundCloud",
     "twitch": "Twitch",
+    "douyin": "Douyin",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
 }
 
 
@@ -131,7 +134,8 @@ def classify_url(url: str) -> str:
         if host == domain or host.endswith("." + domain):
             return source_type
     raise ValueError(
-        "Supported media links: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch."
+        "Supported media links: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, "
+        "Twitch, Douyin, Instagram, and Facebook."
     )
 
 
@@ -192,6 +196,12 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
         "socket_timeout": 30,
     }
+    # Instagram, Facebook and Douyin frequently require a signed-in session.
+    # Off by default; when enabled, yt-dlp reads the cookie store of the named
+    # browser ("chrome", "edge", "firefox") for the target site only.
+    cookies_browser = os.getenv("SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER", "").strip().lower()
+    if cookies_browser:
+        options["cookiesfrombrowser"] = (cookies_browser,)
     if source_type == "bilibili":
         # Bilibili media is commonly served from CDN endpoints that can close a
         # long response early. Smaller ranged requests make recovery/resume more
@@ -521,6 +531,27 @@ def normalize_summary_style(style: str) -> str:
     return normalized
 
 
+SUMMARY_LANGUAGE_NAMES = {
+    "zh": "Simplified Chinese",
+    "zh-cn": "Simplified Chinese",
+    "zh-tw": "Traditional Chinese",
+    "en": "English",
+    "ms": "Malay",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "id": "Indonesian",
+}
+
+
+def normalize_summary_language(language: str) -> str:
+    """Accept a locale code ("zh-CN") or a display name ("English"); the Gemini
+    prompt needs the name, and unknown values pass through untouched."""
+    value = (language or "").strip()
+    if not value:
+        return "Simplified Chinese"
+    return SUMMARY_LANGUAGE_NAMES.get(value.lower(), value)
+
+
 def normalize_summary_custom_instructions(value: str | None) -> str:
     instructions = (value or "").strip()
     if len(instructions) > 4000:
@@ -558,7 +589,7 @@ def make_summary(
     )
     prompt = f"""
 You are summarizing a timestamped transcript for personal study.
-Write the summary in {'Simplified Chinese' if language == 'zh-CN' else language}.
+Write the summary in {normalize_summary_language(language)}.
 
 SUMMARY STYLE: {SUMMARY_STYLE_LABELS[style_id]}
 {style_instruction}

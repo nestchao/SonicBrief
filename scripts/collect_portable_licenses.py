@@ -7,12 +7,14 @@ no detectable license file or independently reviewed version-pinned fallback.
 from __future__ import annotations
 
 import json
+import os
 from email.parser import Parser
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PORTABLE = ROOT / "build" / "portable" / "SonicBrief-MCP"
+# Override with SONICBRIEF_PORTABLE_DIR to audit another PyInstaller onedir (the desktop server).
+PORTABLE = Path(os.environ.get("SONICBRIEF_PORTABLE_DIR") or ROOT / "build" / "portable" / "SonicBrief-MCP")
 FALLBACKS = ROOT / "third_party" / "python_licenses"
 
 

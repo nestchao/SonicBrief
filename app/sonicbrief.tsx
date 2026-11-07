@@ -204,7 +204,15 @@ export function SonicBriefApp() {
   useEffect(() => { if (health) return; const timer = window.setInterval(() => void loadHealth(), 3000); return () => window.clearInterval(timer); }, [health, loadHealth]);
   useEffect(() => { if (activeJob?.status === "completed" && activeJob.transcript === undefined) void refreshJob(activeJob.id); }, [activeJob?.id, activeJob?.status, activeJob?.transcript, refreshJob]);
   useEffect(() => { if (!activeJob || !["queued", "processing"].includes(activeJob.status)) return; const timer = window.setInterval(async () => { const job = await refreshJob(activeJob.id); if (job && ["completed", "failed", "cancelled"].includes(job.status)) window.clearInterval(timer); }, 1200); return () => window.clearInterval(timer); }, [activeJob?.id, activeJob?.status, refreshJob]);
-  useEffect(() => { if (!hasPendingJobs) return; const timer = window.setInterval(() => void loadJobs(), 2000); return () => window.clearInterval(timer); }, [hasPendingJobs, loadJobs]);
+  useEffect(() => {
+    // Jobs can arrive from the Chrome extension while this window is open, so the
+    // list is refreshed on a timer even when nothing here is pending.
+    if (typeof document !== "undefined") {
+      const tick = () => { if (document.visibilityState === "visible") void loadJobs(); };
+      const timer = window.setInterval(tick, hasPendingJobs ? 2000 : 5000);
+      return () => window.clearInterval(timer);
+    }
+  }, [hasPendingJobs, loadJobs]);
   useEffect(() => {
     if (!health || diarizeTouched) return;
     setDiarize(Boolean(health.diarization_configured));

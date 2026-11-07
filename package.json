@@ -8,6 +8,7 @@
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "vite",
+    "build:desktop-ui": "vite build --config vite.desktop.config.ts",
     "build": "bash scripts/build-verified.sh",
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",

@@ -162,7 +162,7 @@ def is_configured() -> bool:
 
 
 def _read_env_lines() -> list[str]:
-    path = config.BACKEND_DIR / ".env"
+    path = config.ENV_FILE
     if not path.exists():
         return []
     return path.read_text(encoding="utf-8").splitlines()
@@ -176,8 +176,8 @@ def _env_line_key(line: str) -> str | None:
 
 
 def _write_env_values(values: dict[str, str | None]) -> None:
-    """Atomically update selected backend/.env values while preserving other settings."""
-    path = config.BACKEND_DIR / ".env"
+    """Atomically update selected settings-file values while preserving other settings."""
+    path = config.ENV_FILE
     lines = _read_env_lines()
     output: list[str] = []
     written: set[str] = set()

@@ -1,0 +1,239 @@
+name: Windows Desktop App
+
+# Heavy (bundles Whisper + optionally CUDA), so it only runs on demand or for release tags.
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [cpu, gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Rust (stable, MSVC)
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+
+      - name: Validate release tag matches the app version
+        shell: pwsh
+        run: |
+          $conf = Get-Content desktop-app/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $expected = "desktop-v$($conf.version)"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $expected) {
+            throw "Tag must be $expected to match tauri.conf.json."
+          }
+
+      - name: Install Python runtime/build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install "pyinstaller>=6.14,<7"
+          # Keep the release on the license-reviewed native wheel.
+          python -m pip install "ctranslate2==4.8.2"
+          if ('${{ matrix.variant }}' -eq 'gpu') {
+            # CUDA 12 runtime libraries that CTranslate2 loads (redistributable under NVIDIA's EULA).
+            python -m pip install "nvidia-cublas-cu12>=12.4,<13" "nvidia-cudnn-cu12>=9,<10"
+          }
+          python -m pip check
+
+      - name: Acquire checksum-pinned LGPL FFmpeg shared build
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $buildTag = 'autobuild-2026-09-30-13-08'
+          $asset = 'ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip'
+          $sha256 = '7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646'
+          $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg-lgpl'
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          gh release download $buildTag --repo BtbN/FFmpeg-Builds --pattern $asset --dir $dest
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to download approved FFmpeg LGPL build.' }
+          $zip = Join-Path $dest $asset
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha256) {
+            throw 'FFmpeg build digest has changed. Packaging refused.'
+          }
+          Expand-Archive -Path $zip -DestinationPath (Join-Path $dest 'extracted') -Force
+          $ffmpeg = Get-ChildItem (Join-Path $dest 'extracted') -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
+          if (!$ffmpeg) { throw 'Downloaded FFmpeg build is missing ffmpeg.exe.' }
+          $dir = $ffmpeg.DirectoryName
+          if (!(Test-Path (Join-Path $dir 'ffprobe.exe'))) { throw 'FFprobe missing.' }
+          if (!(Get-ChildItem $dir -Filter '*.dll')) { throw 'Expected shared FFmpeg DLLs.' }
+          $versionOutput = (& $ffmpeg.FullName -version 2>&1 | Out-String)
+          $licenseOutput = (& $ffmpeg.FullName -L 2>&1 | Out-String)
+          if ($versionOutput -match '--enable-gpl' -or $licenseOutput -notmatch 'GNU Lesser General Public License') {
+            throw 'Unexpected FFmpeg license/build flags. Packaging refused.'
+          }
+          $license = Join-Path (Split-Path $dir -Parent) 'LICENSE.txt'
+          if (!(Test-Path $license)) { throw 'LGPL license text missing.' }
+          "FFMPEG_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "FFMPEG_LICENSE_FILE=$license" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build source-linked LGPL PyAV wheel (no upstream GPL codecs)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install "setuptools>=77,<85" "cython>=3.1,<4" "wheel>=0.45" "delvewheel>=1.8"
+          if ($LASTEXITCODE -ne 0) { throw "PyAV build tool installation failed" }
+          $source = Join-Path $env:RUNNER_TEMP 'pyav-upstream'
+          git clone --depth 1 --branch v18.1.0 https://github.com/PyAV-Org/PyAV.git $source
+          if ($LASTEXITCODE -ne 0) { throw "PyAV source checkout failed" }
+          $revision = (git -C $source rev-parse HEAD).Trim()
+          if ($revision -ne '7e3d950a8b72062502c1a60d672f8ca565313af5') {
+            throw "Unexpected PyAV source revision: $revision"
+          }
+          $ffmpegRoot = Split-Path $env:FFMPEG_DIR -Parent
+          if (!(Test-Path (Join-Path $ffmpegRoot 'include/libavcodec/avcodec.h'))) {
+            throw "Pinned LGPL FFmpeg development headers not found"
+          }
+          Push-Location $source
+          try {
+            python setup.py bdist_wheel "--ffmpeg-dir=$ffmpegRoot"
+            if ($LASTEXITCODE -ne 0) { throw "PyAV source build failed" }
+          } finally {
+            Pop-Location
+          }
+          $wheel = Get-ChildItem (Join-Path $source 'dist') -Filter '*.whl' | Select-Object -First 1
+          if (!$wheel) { throw "Built PyAV wheel missing" }
+          $wheelhouse = Join-Path $env:RUNNER_TEMP 'pyav-lgpl-wheelhouse'
+          New-Item -ItemType Directory -Force $wheelhouse | Out-Null
+          python -m delvewheel repair --add-path $env:FFMPEG_DIR --wheel-dir $wheelhouse $wheel.FullName
+          if ($LASTEXITCODE -ne 0) { throw "PyAV LGPL DLL bundling failed" }
+          $repaired = Get-ChildItem $wheelhouse -Filter '*.whl' | Select-Object -First 1
+          if (!$repaired) { throw "Repaired PyAV wheel missing" }
+          python -m pip install --force-reinstall --no-deps $repaired.FullName
+          if ($LASTEXITCODE -ne 0) { throw "Installing LGPL PyAV wheel failed" }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw "LGPL PyAV dependency check failed" }
+          @'
+          import io, wave
+          from faster_whisper.audio import decode_audio
+          with io.BytesIO() as wav_bytes:
+              with wave.open(wav_bytes, "wb") as wav:
+                  wav.setnchannels(1)
+                  wav.setsampwidth(2)
+                  wav.setframerate(16000)
+                  wav.writeframes(b"\0\0" * 16000)
+              wav_bytes.seek(0)
+              audio = decode_audio(wav_bytes, sampling_rate=16000)
+          if len(audio) != 16000:
+              raise RuntimeError("Source-built LGPL PyAV decode failed")
+          print("Source-built LGPL PyAV WAV decode passed.")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Source-built LGPL PyAV smoke test failed" }
+
+      - name: Unit-test LGPL-only codec policy
+        run: python -m unittest discover -s scripts -p test_check_portable_gpl_codecs.py
+
+      - name: Build the web UI
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+          npm run build:desktop-ui
+          if ($LASTEXITCODE -ne 0) { throw "UI build failed" }
+
+      - name: Build the PyInstaller server (${{ matrix.variant }})
+        run: python scripts/package_windows_desktop.py --variant ${{ matrix.variant }}
+
+      - name: Verify notices and reject GPL-associated codecs inside the server bundle
+        shell: pwsh
+        run: |
+          $bundle = "build/desktop-app/server/SonicBrief-Server"
+          python scripts/check_btbn_static_licenses.py --directory "$bundle/third_party/btbn_static_licenses"
+          if ($LASTEXITCODE -ne 0) { throw "Pinned notices missing from the bundle." }
+          python scripts/check_portable_gpl_codecs.py $bundle
+          if ($LASTEXITCODE -ne 0) { throw "GPL-associated codec found in the LGPL-only bundle." }
+          foreach ($required in "LICENSE", "THIRD_PARTY_NOTICES.md", "third_party/ffmpeg/LICENSE.txt", "third_party/python/INVENTORY.json", "ui/index.html") {
+            if (!(Test-Path "$bundle/$required")) { throw "$required was not bundled." }
+          }
+
+      - name: Self-test the packaged server (no Python or Node at runtime)
+        shell: pwsh
+        run: |
+          $env:SONICBRIEF_FORCE_CPU = '1'
+          $env:SONICBRIEF_PORT = '7872'
+          $env:SONICBRIEF_DATA_DIR = Join-Path $env:RUNNER_TEMP 'SonicBriefServerData'
+          $env:SONICBRIEF_ENV_FILE = Join-Path $env:RUNNER_TEMP 'SonicBriefServer.env'
+          $exe = (Resolve-Path "build/desktop-app/server/SonicBrief-Server/SonicBrief-Server.exe").Path
+          $proc = Start-Process $exe -PassThru -WindowStyle Hidden
+          try {
+            $ready = $false
+            foreach ($i in 1..60) {
+              Start-Sleep 1
+              try { if ((Invoke-RestMethod http://127.0.0.1:7872/api/health -TimeoutSec 2).ok) { $ready = $true; break } } catch {}
+            }
+            if (!$ready) { throw "The packaged server did not become healthy." }
+            if ((Invoke-WebRequest http://127.0.0.1:7872/ -UseBasicParsing).StatusCode -ne 200) { throw "The bundled UI is not served." }
+            $decode = Invoke-RestMethod http://127.0.0.1:7872/api/self-test/audio-decode
+            if (-not $decode.audio_decode_available) { throw "Audio decoding failed inside the bundle." }
+          } finally {
+            if (!$proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          }
+
+      - name: Build the Tauri installer
+        shell: pwsh
+        working-directory: desktop-app
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+          npx tauri build
+          if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
+
+      - name: Collect installer, checksum and size check
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/release | Out-Null
+          $installer = Get-ChildItem desktop-app/src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' | Select-Object -First 1
+          if (!$installer) { throw "NSIS installer not produced." }
+          $name = "SonicBrief-Setup-${{ matrix.variant }}.exe"
+          Copy-Item $installer.FullName "build/release/$name"
+          $digest = (Get-FileHash "build/release/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $name" | Set-Content "build/release/$name.sha256" -Encoding ascii
+          $gib = (Get-Item "build/release/$name").Length / 1GB
+          Write-Host ("{0} is {1:N2} GiB" -f $name, $gib)
+          # GitHub release assets and NSIS installers are limited to 2 GiB.
+          if ($gib -ge 1.95) { throw "$name exceeds the 2 GiB limit; move the CUDA DLLs to a separate downloadable GPU pack." }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonicbrief-desktop-${{ matrix.variant }}
+          path: |
+            build/release/SonicBrief-Setup-${{ matrix.variant }}.exe
+            build/release/SonicBrief-Setup-${{ matrix.variant }}.exe.sha256
+
+      - name: Create tagged draft GitHub Release (publication remains manual)
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $name = "SonicBrief-Setup-${{ matrix.variant }}.exe"
+          gh release view "$env:GITHUB_REF_NAME" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "$env:GITHUB_REF_NAME" --title "SonicBrief $env:GITHUB_REF_NAME (Windows desktop)" --generate-notes --draft
+          }
+          gh release upload "$env:GITHUB_REF_NAME" "build/release/$name" "build/release/$name.sha256" --clobber
