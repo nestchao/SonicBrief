@@ -110,8 +110,10 @@ Two installers are built by the **Windows Desktop App** GitHub workflow (run it 
 
 | Installer | For | Notes |
 | --- | --- | --- |
-| `SonicBrief-Setup-gpu.exe` | NVIDIA GPUs | Bundles the CUDA 12 runtime; falls back to the CPU automatically. Much larger. |
+| `SonicBrief-Setup-gpu.exe` | NVIDIA GPUs | Same installer size as the CPU one. Add the **CUDA pack** (below) to transcribe on the GPU; without it this build runs on the CPU. |
 | `SonicBrief-Setup-cpu.exe` | Any PC | Smaller; transcription is several times slower. |
+
+**CUDA pack (GPU builds).** The CUDA runtime is about 1.7 GB and the installer format (NSIS) cannot build installers above 2 GiB, so the GPU build keeps those DLLs out and the workflow publishes them separately as `SonicBrief-CudaPack.zip`. If the machine already has a CUDA 12 runtime (a recent NVIDIA driver usually provides one), the pack is unnecessary. Otherwise: quit SonicBrief, unzip the archive so that a `cuda` folder appears at `%LOCALAPPDATA%\SonicBrief\cuda`, then start the app again — the status pill reports GPU mode once the DLLs are found. The server also looks for a `cuda` folder next to the executable. The DLLs are NVIDIA redistributables under the NVIDIA CUDA Toolkit EULA.
 
 The installers are not code-signed, so Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info → Run anyway**.
 

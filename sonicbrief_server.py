@@ -22,10 +22,13 @@ RUNTIME_DIR = Path(getattr(sys, "_MEIPASS", PROJECT_DIR))
 def prepare_environment() -> None:
     """Point the backend at per-user folders and the bundled FFmpeg/CUDA DLLs."""
     if FROZEN:
-        # FFmpeg, FFprobe and (GPU build) CUDA DLLs sit beside the executable.
-        os.environ["PATH"] = os.pathsep.join((str(RUNTIME_DIR), os.environ.get("PATH", "")))
         # Same per-user folder as the portable MCP, so history/models are shared.
         local = Path(os.getenv("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "SonicBrief"
+        # FFmpeg and FFprobe sit beside the executable. The CUDA runtime is too
+        # large for the installer, so it arrives as a separate pack: accept a
+        # "cuda" folder beside the app or in the per-user folder.
+        search = [str(RUNTIME_DIR), str(RUNTIME_DIR / "cuda"), str(local / "cuda")]
+        os.environ["PATH"] = os.pathsep.join((*search, os.environ.get("PATH", "")))
         os.environ.setdefault("SONICBRIEF_DATA_DIR", str(local / "data"))
         os.environ.setdefault("SONICBRIEF_ENV_FILE", str(local / "settings.env"))
         os.environ.setdefault("HF_HOME", str(local / "models"))

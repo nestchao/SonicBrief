@@ -54,7 +54,7 @@ def gpu_dlls() -> list[Path]:
     return found
 
 
-def build(variant: str, dev_ffmpeg: bool, ui_dir: Path, out_dir: Path) -> Path:
+def build(variant: str, dev_ffmpeg: bool, ui_dir: Path, out_dir: Path, bundle_cuda: bool = True) -> Path:
     if sys.platform != "win32" or sys.maxsize <= 2**32:
         raise RuntimeError("This build requires 64-bit Windows.")
     if sys.version_info[:2] != (3, 11):
@@ -81,6 +81,10 @@ def build(variant: str, dev_ffmpeg: bool, ui_dir: Path, out_dir: Path) -> Path:
         ]
 
     dlls = gpu_dlls() if variant == "gpu" else []
+    # NSIS is a 32-bit program and cannot build installers above ~2 GiB, and the
+    # CUDA runtime alone is ~1.7 GB, so the GPU variant ships without it by
+    # default; users install the separate "CUDA pack" next to the app instead.
+    build_dlls = dlls if bundle_cuda else []
 
     with tempfile.TemporaryDirectory(prefix="sonicbrief-desktop-package-") as stage:
         staged_backend = Path(stage) / "backend"
@@ -108,7 +112,7 @@ def build(variant: str, dev_ffmpeg: bool, ui_dir: Path, out_dir: Path) -> Path:
             "--add-binary", f"{ffmpeg};.",
             "--add-binary", f"{ffprobe};.",
             *[item for dll in ffmpeg_dlls for item in ("--add-binary", f"{dll};.")],
-            *[item for dll in dlls for item in ("--add-binary", f"{dll};.")],
+            *[item for dll in build_dlls for item in ("--add-binary", f"{dll};.")],
             *license_data,
             "--add-data", f"{ROOT / 'LICENSE'};.",
             "--add-data", f"{ROOT / 'THIRD_PARTY_NOTICES.md'};.",
@@ -145,6 +149,16 @@ def build(variant: str, dev_ffmpeg: bool, ui_dir: Path, out_dir: Path) -> Path:
         os.environ["SONICBRIEF_PORTABLE_DIR"] = str(bundle)
         from collect_portable_licenses import main as collect_licenses
         collect_licenses()
+    if variant == "gpu" and not bundle_cuda:
+        # Leave the CUDA DLLs next to the build output so the pack script can zip them.
+        pack_dir = out_dir.parent / "cuda-pack" / "cuda"
+        if pack_dir.exists():
+            shutil.rmtree(pack_dir)
+        pack_dir.mkdir(parents=True)
+        for dll in dlls:
+            shutil.copy2(dll, pack_dir / dll.name)
+        print(f"CUDA DLLs staged separately: {pack_dir} ({len(dlls)} files)")
+
     print(f"Desktop server built ({variant}): {executable}")
     return bundle
 
@@ -153,10 +167,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--variant", choices=("cpu", "gpu"), default="cpu")
     parser.add_argument("--dev-ffmpeg", action="store_true", help="local test build: PATH ffmpeg, no licence checks")
+    parser.add_argument(
+        "--exclude-cuda",
+        action="store_true",
+        help="gpu variant only: leave the CUDA DLLs out of the bundle (they exceed the NSIS 2 GiB limit)",
+    )
     parser.add_argument("--ui-dir", type=Path, default=ROOT / "build" / "desktop-ui")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args()
-    build(args.variant, args.dev_ffmpeg, args.ui_dir.resolve(), args.out.resolve())
+    build(
+        args.variant,
+        args.dev_ffmpeg,
+        args.ui_dir.resolve(),
+        args.out.resolve(),
+        bundle_cuda=not args.exclude_cuda,
+    )
 
 
 if __name__ == "__main__":
