@@ -7,6 +7,7 @@ import { Check, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, Settings, X } fr
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExtensionInstall } from "@/app/extension-install";
+import { DownloadSettings } from "@/app/download-settings";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -247,6 +248,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
               <TabsList className="sonic-settings-tabs">
                 <TabsTrigger value="gemini">Gemini</TabsTrigger>
                 <TabsTrigger value="extension">Browser extension</TabsTrigger>
+                <TabsTrigger value="downloads">Downloads</TabsTrigger>
               </TabsList>
 
               <TabsContent value="gemini" className="sonic-settings-body">
@@ -362,6 +364,10 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
 
               <TabsContent value="extension" className="sonic-settings-body">
                 <ExtensionInstall />
+              </TabsContent>
+
+              <TabsContent value="downloads" className="sonic-settings-body">
+                <DownloadSettings />
               </TabsContent>
             </Tabs>
           </section>

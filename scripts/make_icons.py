@@ -124,6 +124,15 @@ def main() -> None:
     master.resize((512, 512), Image.LANCZOS).save(web_logo)
     print(f"wrote {web_logo.relative_to(ROOT)} (512px)")
 
+    # The Chrome extension declares these four sizes in its manifest; if they are
+    # missing or stale, Chrome shows its own placeholder instead of the mark.
+    extension_icons = ROOT / "extension" / "icons"
+    extension_icons.mkdir(parents=True, exist_ok=True)
+    for px in (16, 32, 48, 128):
+        target = extension_icons / f"icon{px}.png"
+        master.resize((px, px), Image.LANCZOS).save(target)
+        print(f"wrote {target.relative_to(ROOT)} ({px}px)")
+
     if args.source:
         print("skipped favicon.svg (source artwork is raster)")
         return

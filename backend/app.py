@@ -18,6 +18,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 import config
+import download_settings
 import gemini_settings
 import pipeline
 import storage
@@ -199,6 +200,24 @@ def gemini_settings_status() -> dict[str, object]:
         "model": gemini_settings.get_gemini_model(),
         "models": [],
     }
+
+
+@app.get("/api/settings/downloads")
+def download_settings_status() -> dict[str, object]:
+    """Which browser's cookies the downloader may use (YouTube bot checks)."""
+    return download_settings.describe()
+
+
+@app.post("/api/settings/downloads")
+def save_download_settings(payload: dict[str, object]) -> dict[str, object]:
+    value = payload.get("cookies_browser")
+    if not isinstance(value, str):
+        raise HTTPException(status_code=422, detail="Send cookies_browser as a string.")
+    try:
+        download_settings.save_browser(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return download_settings.describe()
 
 
 @app.post("/api/settings/gemini/models")

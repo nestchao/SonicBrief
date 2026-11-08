@@ -2263,3 +2263,49 @@ button, input { font: inherit; }
 .sonic-guide-chip.is-muted {
   opacity: .55;
 }
+
+/* Downloads settings tab */
+.sonic-downloads {
+  display: flex;
+  flex-direction: column;
+  gap: .95rem;
+}
+
+.sonic-downloads-intro {
+  display: flex;
+  gap: .6rem;
+  align-items: flex-start;
+}
+
+.sonic-downloads-intro > svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #d93025;
+  flex-shrink: 0;
+  margin-top: .15rem;
+}
+
+.sonic-downloads-intro h3 {
+  margin: 0;
+  font-size: .86rem;
+  color: #383d4d;
+}
+
+.sonic-downloads-intro p {
+  margin: .25rem 0 0;
+  font-size: .73rem;
+  line-height: 1.5;
+  color: #7b8194;
+}
+
+.sonic-downloads-field {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.sonic-downloads-field > label {
+  font-size: .76rem;
+  font-weight: 600;
+  color: #474e60;
+}
