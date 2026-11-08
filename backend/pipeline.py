@@ -18,6 +18,7 @@ from faster_whisper import WhisperModel
 from faster_whisper.audio import decode_audio
 
 import config
+import download_settings
 import gemini_settings
 import storage
 
@@ -188,6 +189,19 @@ def _download_error_message(error: Exception) -> str:
             "This media has no audio track, so there is nothing to transcribe. "
             "Silent videos, photo posts and some Instagram reels have no sound."
         )
+    if "sign in to confirm you" in lowered and "not a bot" in lowered:
+        return (
+            "YouTube asked this computer to prove it is not a bot, so the download was refused. "
+            "Open Settings → Downloads, choose the browser you normally watch YouTube in (it must be "
+            "signed in), then run the job again. This is a check on your network, not on the video."
+        )
+    if "failed to decrypt with dpapi" in lowered or "could not copy chrome cookie database" in lowered:
+        return (
+            "SonicBrief could not read the browser's cookies, which YouTube now requires. "
+            "Fully close that browser (including background processes) and try again, or choose a different "
+            "browser in Settings → Downloads. Firefox is the most reliable on Windows because Chrome and Edge "
+            "encrypt their cookies in a way other programs often cannot read."
+        )
     return f"Media download failed after retries: {message}"
 
 
@@ -259,9 +273,12 @@ def download_audio(
     # Instagram, Facebook and Douyin frequently require a signed-in session.
     # Off by default; when enabled, yt-dlp reads the cookie store of the named
     # browser ("chrome", "edge", "firefox") for the target site only.
-    cookies_browser = os.getenv("SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER", "").strip().lower()
-    if cookies_browser:
+    cookies_browser = download_settings.get_browser()
+    if cookies_browser != "off":
         options["cookiesfrombrowser"] = (cookies_browser,)
+    runtimes = download_settings.js_runtimes()
+    if runtimes:
+        options["js_runtimes"] = runtimes
     if source_type == "bilibili":
         # Bilibili media is commonly served from CDN endpoints that can close a
         # long response early. Smaller ranged requests make recovery/resume more
@@ -279,6 +296,11 @@ def download_audio(
             break
         except yt_dlp.utils.DownloadError as exc:
             last_error = exc
+            # A bot check or unreadable cookie store will not clear in a second;
+            # repeating the request only wastes time.
+            lowered = str(exc).lower()
+            if "not a bot" in lowered or "dpapi" in lowered or "cookie database" in lowered:
+                break
             if attempt == 0:
                 time.sleep(1.0)
 
