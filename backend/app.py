@@ -94,7 +94,7 @@ async def lifespan(_: FastAPI):
     EXECUTOR.shutdown(wait=False, cancel_futures=False)
 
 
-app = FastAPI(title="SonicBrief Local API", version="0.1.6", lifespan=lifespan)
+app = FastAPI(title="SonicBrief Local API", version="0.1.7", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
