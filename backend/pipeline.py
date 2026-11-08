@@ -160,7 +160,11 @@ def normalize_audio(source: Path, destination: Path) -> None:
         capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "FFmpeg could not decode this media file.")
+        stderr = result.stderr.strip()
+        lowered = stderr.lower()
+        if "does not contain any stream" in lowered or "no audio" in lowered or "matches no streams" in lowered:
+            raise RuntimeError("This media has no audio track, so there is nothing to transcribe.")
+        raise RuntimeError(stderr or "FFmpeg could not decode this media file.")
 
 
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -174,6 +178,15 @@ def _download_error_message(error: Exception) -> str:
             "Media download was interrupted before the source finished sending the file. "
             "SonicBrief retried the transfer, but the Bilibili/CDN connection still ended early. "
             "Try the job again; if it repeats, update yt-dlp or try again later."
+        )
+    if (
+        "unable to obtain file audio codec" in lowered
+        or "does not contain any stream" in lowered
+        or "matches no streams" in lowered
+    ):
+        return (
+            "This media has no audio track, so there is nothing to transcribe. "
+            "Silent videos, photo posts and some Instagram reels have no sound."
         )
     return f"Media download failed after retries: {message}"
 
@@ -692,6 +705,9 @@ def run_job(
                 job_id, progress=68, stage="diarize", stage_detail="Preparing speaker identification…", stage_progress=0, processed_duration=result.get("duration") or duration,
                 language=result.get("language"), engine=result.get("engine"), transcript_json=segments,
             )
+            if not segments:
+                # Music, silence or a speech-free clip: say so instead of finishing silently.
+                storage.add_warning(job_id, "No speech was detected in this media, so the transcript is empty.")
             if diarize:
                 try:
                     check_cancelled(job_id)
@@ -701,7 +717,7 @@ def run_job(
                     storage.add_warning(job_id, f"Speaker identification was skipped: {exc}")
 
             check_cancelled(job_id)
-            if generate_summary:
+            if generate_summary and segments:
                 storage.update_job(job_id, progress=84, stage="summarize")
                 try:
                     summary = make_summary(segments, summary_language, summary_style, summary_custom_instructions)
@@ -710,11 +726,13 @@ def run_job(
                 except Exception as exc:
                     storage.add_warning(job_id, f"Summary was not generated: {exc}")
             else:
+                if generate_summary:
+                    storage.add_warning(job_id, "Summary was skipped because no speech was detected.")
                 storage.update_job(
                     job_id,
                     progress=92,
                     stage="finalize",
-                    stage_detail="Transcript ready · summary not requested",
+                    stage_detail=("Transcript ready · no speech detected" if not segments else "Transcript ready · summary not requested"),
                     stage_progress=100,
                 )
 
