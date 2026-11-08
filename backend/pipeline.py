@@ -271,12 +271,8 @@ def download_audio(
                 return
 
         options["progress_hooks"] = [_on_progress]
-    # Instagram, Facebook and Douyin frequently require a signed-in session.
-    # Off by default; when enabled, yt-dlp reads the cookie store of the named
-    # browser ("chrome", "edge", "firefox") for the target site only.
-    cookies_browser = download_settings.get_browser()
-    if cookies_browser != "off":
-        options["cookiesfrombrowser"] = (cookies_browser,)
+    # Cookies are chosen per attempt below by `source_chain`; setting a browser
+    # here would hand `auto` to yt-dlp as if it were a browser name.
     runtimes = download_settings.js_runtimes()
     if runtimes:
         options["js_runtimes"] = runtimes
@@ -318,6 +314,8 @@ def download_audio(
         if source is not None:
             kind, value = source
             if kind == "browser":
+                if value not in download_settings.BROWSERS:
+                    continue
                 attempt_options["cookiesfrombrowser"] = (value,)
                 if progress_callback:
                     progress_callback(f"Using {value.capitalize()} cookies…", 0.0)
