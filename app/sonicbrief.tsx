@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GeminiSettings } from "@/app/gemini-settings";
+import { ExtensionInstall } from "@/app/extension-install";
 
 type InputSource = "url" | "upload";
 type SummaryStyle = "brief" | "standard" | "detailed" | "study_notes" | "key_points" | "custom";
@@ -195,6 +196,24 @@ export function SonicBriefApp() {
   const [showPipelineDetails, setShowPipelineDetails] = useState(false);
   const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>("standard");
   const [summaryCustomInstructions, setSummaryCustomInstructions] = useState("");
+
+  // First-run nudge: show the extension helper until the user dismisses it.
+  const [showExtensionPrompt, setShowExtensionPrompt] = useState(false);
+  useEffect(() => {
+    try {
+      setShowExtensionPrompt(window.localStorage.getItem("sonicbrief.extensionPrompt.dismissed") !== "1");
+    } catch {
+      setShowExtensionPrompt(true);
+    }
+  }, []);
+  const dismissExtensionPrompt = useCallback(() => {
+    try {
+      window.localStorage.setItem("sonicbrief.extensionPrompt.dismissed", "1");
+    } catch {
+      /* storage may be unavailable; just hide it for this session */
+    }
+    setShowExtensionPrompt(false);
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const hasPendingJobs = jobs.some((job) => ["queued", "processing"].includes(job.status));
   const loadHealth = useCallback(async () => { try { const response = await fetch(`${API_BASE}/api/health`); if (!response.ok) throw new Error("Backend unavailable"); setHealth(await response.json()); } catch { setHealth(null); } }, []);
@@ -380,6 +399,7 @@ export function SonicBriefApp() {
         </section>
 
         <div className="sonic-sidebar-bottom">
+          <ExtensionInstall compact />
           <GeminiSettings onConfiguredChange={(configured) => setHealth((current) => current ? { ...current, gemini_configured: configured } : current)} />
           <div className="sonic-local-status"><MonitorDot /><span>{health ? "Local API connected" : "Backend offline"}</span></div>
         </div>
@@ -394,6 +414,11 @@ export function SonicBriefApp() {
             <h1>Start your first transcription</h1>
             <p>Add a supported public media link or upload local media. SonicBrief will keep the transcript, summary, and history together.</p>
             <Button size="lg" onClick={() => setNewTaskOpen(true)}>New transcription</Button>
+            {showExtensionPrompt && (
+              <div className="sonic-firstrun-extension">
+                <ExtensionInstall onDismiss={dismissExtensionPrompt} />
+              </div>
+            )}
           </div>
         ) : (
           <>

@@ -109,6 +109,9 @@ def build(variant: str, dev_ffmpeg: bool, ui_dir: Path, out_dir: Path, bundle_cu
             "--paths", str(BACKEND),
             "--add-data", f"{staged_backend};backend",
             "--add-data", f"{ui_dir};ui",
+            # Ship the Chrome extension so the app can hand users a real folder
+            # to "Load unpacked" instead of sending them to the repository.
+            "--add-data", f"{ROOT / 'extension'};extension",
             "--add-binary", f"{ffmpeg};.",
             "--add-binary", f"{ffprobe};.",
             *[item for dll in ffmpeg_dlls for item in ("--add-binary", f"{dll};.")],
