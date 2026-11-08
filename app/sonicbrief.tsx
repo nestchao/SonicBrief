@@ -348,7 +348,8 @@ export function SonicBriefApp() {
     <main className="sonic-app-shell">
       <aside className="sonic-sidebar">
         <div className="sonic-sidebar-brand">
-          <img className="sonic-brand-mark" src="/sonicbrief-logo.png" alt="SonicBrief logo" />
+          {/* The version keeps WebView2 from serving a cached copy after the artwork changes. */}
+          <img className="sonic-brand-mark" src="/sonicbrief-logo.png?v=2" alt="SonicBrief logo" />
           <div><strong>SonicBrief</strong><span>Audio workspace</span></div>
         </div>
 
