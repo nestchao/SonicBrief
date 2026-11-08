@@ -296,8 +296,12 @@ def describe() -> dict[str, object]:
 
 
 # Backwards-compatible helpers used by earlier code and tests.
+# `get_browser` must only ever return a real browser (or "off"): `auto` and
+# `file` are *modes*, and handing one to yt-dlp fails with
+# `unsupported browser: "auto"`.
 def get_browser() -> str:
-    return get_mode()
+    mode = get_mode()
+    return mode if mode in BROWSERS else "off"
 
 
 def save_browser(value: str) -> str:

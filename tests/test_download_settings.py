@@ -20,6 +20,22 @@ COOKIES = (
 
 
 class ModeTests(unittest.TestCase):
+    def test_get_browser_never_returns_a_mode(self):
+        """`auto` and `file` are modes; yt-dlp rejects them as browser names."""
+        for mode in download_settings.CHOICES:
+            with mock.patch.dict(os.environ, {"SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER": mode}, clear=False):
+                value = download_settings.get_browser()
+                self.assertIn(value, download_settings.BROWSERS + ("off",), f"{mode} produced {value!r}")
+
+    def test_chain_never_yields_a_browser_outside_the_allowlist(self):
+        for mode in download_settings.CHOICES:
+            with mock.patch.dict(os.environ, {"SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER": mode}, clear=False), \
+                 mock.patch.object(download_settings, "installed_browsers", return_value=list(download_settings.BROWSERS)), \
+                 mock.patch.object(download_settings, "has_cookie_file", return_value=True):
+                for kind, value in download_settings.source_chain():
+                    if kind == "browser":
+                        self.assertIn(value, download_settings.BROWSERS)
+
     def test_defaults_to_auto_when_nothing_is_saved(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER", None)
