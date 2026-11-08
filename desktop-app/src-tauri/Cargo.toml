@@ -1,6 +1,6 @@
 [package]
 name = "sonicbrief-desktop"
-version = "0.1.4"
+version = "0.1.5"
 description = "SonicBrief local transcription desktop app"
 authors = ["SonicBrief"]
 edition = "2021"
