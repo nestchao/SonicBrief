@@ -210,14 +210,85 @@ def download_settings_status() -> dict[str, object]:
 
 @app.post("/api/settings/downloads")
 def save_download_settings(payload: dict[str, object]) -> dict[str, object]:
-    value = payload.get("cookies_browser")
+    value = payload.get("mode", payload.get("cookies_browser"))
     if not isinstance(value, str):
-        raise HTTPException(status_code=422, detail="Send cookies_browser as a string.")
+        raise HTTPException(status_code=422, detail="Send mode as a string.")
     try:
-        download_settings.save_browser(value)
+        download_settings.save_mode(value)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return download_settings.describe()
+
+
+@app.post("/api/settings/downloads/cookies-file")
+async def upload_cookie_file(file: UploadFile = File(...)) -> dict[str, object]:
+    """Store an imported cookies.txt. The contents are never returned or logged."""
+    payload = await file.read()
+    try:
+        kept = download_settings.save_cookie_file(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result = download_settings.describe()
+    result["kept_rows"] = kept
+    return result
+
+
+@app.delete("/api/settings/downloads/cookies-file")
+def delete_cookie_file() -> dict[str, object]:
+    removed = download_settings.delete_cookie_file()
+    result = download_settings.describe()
+    result["removed"] = removed
+    return result
+
+
+@app.post("/api/settings/downloads/test")
+def test_youtube_access() -> dict[str, object]:
+    """Try one known video through the current chain and report which source worked.
+
+    No job is created and nothing is downloaded; this only runs the extractor so
+    the user can see whether YouTube will let them through.
+    """
+    import yt_dlp
+
+    url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    attempts: list[dict[str, object]] = []
+    sources: list[tuple[str, str] | None] = [None]
+    for kind, value in download_settings.source_chain():
+        sources.append((kind, value))
+
+    for source in sources:
+        options: dict[str, object] = {"quiet": True, "no_warnings": True, "socket_timeout": 20}
+        runtimes = download_settings.js_runtimes()
+        if runtimes:
+            options["js_runtimes"] = runtimes
+        label = "no cookies"
+        temporary: Path | None = None
+        if source is not None:
+            kind, value = source
+            if kind == "browser":
+                options["cookiesfrombrowser"] = (value,)
+                label = f"{value} cookies"
+            else:
+                try:
+                    temporary = Path(tempfile.mkstemp(prefix="sonicbrief-cookies-", suffix=".txt")[1])
+                    shutil.copyfile(value, temporary)
+                except OSError as exc:
+                    attempts.append({"source": "cookies.txt", "ok": False, "error": str(exc)})
+                    continue
+                options["cookiefile"] = str(temporary)
+                label = "cookies.txt"
+        try:
+            with yt_dlp.YoutubeDL(options) as downloader:
+                downloader.extract_info(url, download=False)
+            attempts.append({"source": label, "ok": True, "error": None})
+            return {"ok": True, "used": label, "attempts": attempts}
+        except Exception as exc:  # noqa: BLE001 - report whatever yt-dlp raised
+            attempts.append({"source": label, "ok": False, "error": str(exc).splitlines()[0][:200]})
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    return {"ok": False, "used": None, "attempts": attempts}
 
 
 @app.post("/api/settings/gemini/models")
