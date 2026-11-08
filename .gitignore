@@ -20,3 +20,17 @@ opencode.json
 *.pyc
 __pycache__/
 legacy/
+
+# Local portable-MCP test scratch (multi-GB; never commit)
+/.portable-test/
+
+# Desktop app build output
+/build/desktop-ui/
+/build/desktop-app/
+/build/pyinstaller/
+/desktop-app/src-tauri/target/
+/desktop-app/src-tauri/gen/
+/desktop-app/node_modules/
+/build/pyinstaller-desktop/
+/build/*.spec
+/build/release/

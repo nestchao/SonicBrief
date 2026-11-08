@@ -3,6 +3,13 @@ uvicorn[standard]==0.35.0
 python-multipart==0.0.20
 python-dotenv==1.1.1
 faster-whisper==1.2.0
+# faster-whisper depends on onnxruntime and leaves it unpinned, but its wheel
+# ships no licence file of its own: the release build needs the version that has
+# a reviewed fallback in third_party/python_licenses (see
+# scripts/collect_portable_licenses.py). 1.31.1 had no reviewed licence.
+onnxruntime==1.31.0
+# Same reason: the reviewed fallback in third_party/python_licenses is 0.23.3.
+tokenizers==0.23.3
 # faster-whisper 1.2.0 still passes metadata_errors= to av.open; PyAV 19 removed it.
 av<19
 yt-dlp[default]>=2025.1.1

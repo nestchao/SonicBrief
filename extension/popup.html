@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SonicBrief</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="" width="22" height="22">
+    <h1>SonicBrief</h1>
+    <span id="status" class="pill">Checking…</span>
+  </header>
+
+  <section id="detected" class="detected" hidden>
+    <span id="platform" class="platform"></span>
+    <p id="pageTitle" class="page-title"></p>
+    <p id="pageUrl" class="page-url"></p>
+  </section>
+
+  <section id="notDetected" class="notice" hidden>
+    <p><strong>This page isn't a supported video.</strong> Open a video page, or paste a link.</p>
+    <input id="manualUrl" type="url" placeholder="https://www.youtube.com/watch?v=…" aria-label="Video link">
+  </section>
+
+  <section id="offline" class="notice" hidden>
+    <p><strong>SonicBrief isn't running.</strong> Start the desktop app, or click the button and it will start and pick your link up.</p>
+    <button id="launch" class="secondary" type="button">Start SonicBrief</button>
+  </section>
+
+  <form id="form">
+    <div class="row">
+      <div>
+        <label for="model">Model</label>
+        <select id="model">
+          <option value="turbo">Whisper Turbo</option>
+          <option value="large-v3">Whisper Large v3</option>
+          <option value="distil-large-v3">Distil-Whisper Large v3</option>
+          <option value="small">Whisper Small</option>
+        </select>
+      </div>
+      <div class="summary-cell">
+        <label for="summary">Summary</label>
+        <label class="check"><input id="summary" type="checkbox"> Summarize</label>
+      </div>
+    </div>
+
+    <details id="options">
+      <summary>Options</summary>
+
+      <div class="row">
+        <div>
+          <label for="language">Transcript language</label>
+          <select id="language">
+            <option value="auto">Auto-detect</option>
+            <option value="en">English</option>
+            <option value="zh">Chinese</option>
+            <option value="ms">Malay</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="id">Indonesian</option>
+          </select>
+        </div>
+        <div>
+          <label for="summaryLanguage">Summary language</label>
+          <select id="summaryLanguage"></select>
+        </div>
+      </div>
+
+      <label for="summaryStyle">Summary style</label>
+      <select id="summaryStyle">
+        <option value="brief">Brief</option>
+        <option value="standard">Standard</option>
+        <option value="detailed">Detailed</option>
+        <option value="study_notes">Study Notes</option>
+        <option value="key_points">Key Points</option>
+      </select>
+    </details>
+
+    <p id="geminiHint" class="hint" hidden>Add a Gemini API key in SonicBrief's Gemini Settings to enable summaries.</p>
+
+    <button id="submit" type="submit" disabled>Transcribe</button>
+    <p id="result" class="result" role="status"></p>
+  </form>
+
+  <section id="recent" hidden>
+    <h2>Recent</h2>
+    <ul id="jobs"></ul>
+  </section>
+
+  <footer>
+    <button id="openUi" class="link" type="button">Open SonicBrief ↗</button>
+    <span class="hint">Alt+Shift+S</span>
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

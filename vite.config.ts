@@ -47,9 +47,12 @@ export default defineConfig(async () => {
     server: {
       host: "0.0.0.0",
       allowedHosts: ["terminal.local"],
-      ...(isCodexSeatbeltSandbox
-        ? { watch: { useFsEvents: false, usePolling: true } }
-        : {}),
+      watch: {
+        // data/ holds runtime state (SQLite, uploads, logs, the desktop app's
+        // Edge profile). Watching it is wasteful and crashes on locked files.
+        ignored: ["**/data/**"],
+        ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}),
+      },
     },
     plugins: [
       vinext(),

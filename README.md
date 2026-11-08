@@ -82,6 +82,70 @@ Legacy `GEMINI_TRANSCRIPTION_MODEL` and `GEMINI_SUMMARY_MODEL` overrides remain 
 
 Then double-click `start.bat`. It starts the API at `http://127.0.0.1:7860`, starts the web interface at `http://127.0.0.1:3000`, and opens the interface in your browser.
 
+## Desktop app (system tray)
+
+For everyday use, launch **SonicBrief** from the Desktop or Start Menu shortcut that `setup.bat` creates (or double-click `SonicBrief.vbs`). It:
+
+- starts the API and web interface in the background, with no terminal windows, and opens SonicBrief in a tab of your normal browser once it is ready (the first start can take a few minutes);
+- keeps running in the background when you close the tab, so jobs keep going; launch the **SonicBrief** shortcut again to reopen the tab;
+- reuses an API or interface that is already running instead of starting a second copy, and only one desktop app runs at a time;
+- adds a system tray icon (when Windows allows it) with **Open SonicBrief**, **Transcribe link from clipboard**, **Start with Windows**, folder shortcuts, and **Quit**, and shows a Windows notification when a transcript is ready or a job fails.
+
+> **The native installer app (next section) is the supported way to run SonicBrief now.** It starts in seconds and its tray icon is reliable. This Python launcher stays in the repository as the development path — it runs the backend and Vite straight from the checkout, so code changes take effect without packaging anything. If both are installed, the Desktop/Start Menu **SonicBrief** shortcut opens the native app; start the dev launcher with `SonicBrief.vbs` when you are working on the code.
+
+**To stop SonicBrief**, use the **Stop SonicBrief** shortcut (or double-click `Stop SonicBrief.bat`). It does not need the tray icon, which some PCs hide or block. It asks the running app to quit, which also stops the API and interface, and it asks first if a transcription is still running.
+
+Logs are written to `data\logs\`. The desktop app also registers a per-user `sonicbrief-desktop://` link so the Chrome extension can start it. To add the shortcuts or packages to an existing install without rerunning setup:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r desktop\requirements.txt
+powershell -NoProfile -ExecutionPolicy Bypass -File .\desktop\install_shortcuts.ps1
+```
+
+## Windows installer app (native)
+
+A native Windows app that needs no Python, Node, or `setup.bat`: install it, open **SonicBrief** from the Start Menu, and transcribe. It is a small [Tauri](https://tauri.app/) shell (WebView2 window + tray) around a bundled server (`SonicBrief-Server.exe`: the FastAPI backend, faster-whisper, yt-dlp, FFmpeg, and the web UI). It starts in seconds, keeps running in the tray when you close the window, and stops the server when you quit. It installs per user (no administrator rights) and shares its data with the portable MCP build in `%LOCALAPPDATA%\SonicBrief` (history in `data\`, Gemini settings in `settings.env`, models in `models\`, logs in `logs\`).
+
+Two installers are built by the **Windows Desktop App** GitHub workflow (run it manually or push a `desktop-v<version>` tag):
+
+| Installer | For | Notes |
+| --- | --- | --- |
+| `SonicBrief-Setup-gpu.exe` | NVIDIA GPUs | Same installer size as the CPU one. Add the **CUDA pack** (below) to transcribe on the GPU; without it this build runs on the CPU. |
+| `SonicBrief-Setup-cpu.exe` | Any PC | Smaller; transcription is several times slower. |
+
+**CUDA pack (GPU builds).** The CUDA runtime is about 1.7 GB and the installer format (NSIS) cannot build installers above 2 GiB, so the GPU build keeps those DLLs out and the workflow publishes them separately as `SonicBrief-CudaPack.zip`. If the machine already has a CUDA 12 runtime (a recent NVIDIA driver usually provides one), the pack is unnecessary. Otherwise: quit SonicBrief, unzip the archive so that a `cuda` folder appears at `%LOCALAPPDATA%\SonicBrief\cuda`, then start the app again — the status pill reports GPU mode once the DLLs are found. The server also looks for a `cuda` folder next to the executable. The DLLs are NVIDIA redistributables under the NVIDIA CUDA Toolkit EULA.
+
+The installers are not code-signed, so Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info → Run anyway**.
+
+Build it yourself on Windows (Rust, Node 22, Python 3.11 with the backend requirements, and FFmpeg on `PATH` are needed):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_desktop_app.ps1
+```
+
+That produces `desktop-app\src-tauri\target\release\bundle\nsis\SonicBrief_*_x64-setup.exe`. A local build uses whatever FFmpeg is on `PATH` and skips the licence checks, so it is for testing only; releases use the audited LGPL FFmpeg from the workflow. The Chrome extension below works with this app unchanged.
+
+## Chrome extension
+
+The `extension/` folder is a Chrome (Manifest V3) extension that sends the video you are watching to your local SonicBrief app.
+
+Install it: open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and choose the `extension` folder. Pin it from the puzzle-piece menu. After editing the extension, press **Reload** on its card.
+
+- Open the popup on a video page and it shows what it found — e.g. **YouTube** plus the video title — with one button: **Transcribe + summarize**. The link is normalized first, so `youtu.be/ID`, a Short, a live replay, an embed and a `watch?v=` page all resolve to the same video.
+- Supported: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch, Douyin, Instagram (Reels and posts) and Facebook videos. A supported *host* is not enough: a channel page, the YouTube feed, the Instagram feed or the Facebook home page shows a "not a video" hint with a paste box instead of a live button.
+- **Model** is visible in the popup (Whisper Turbo, Large v3, Distil Large v3, Small). **Options** holds the transcript language, the **summary language** (default Simplified Chinese) and the summary style. Every choice is remembered between popups.
+- Right-click a video page or a video link and choose **Transcribe with SonicBrief**, or press **Alt+Shift+S**.
+- If SonicBrief isn't running, the extension starts the desktop app through `sonicbrief-desktop://` (Chrome asks once to allow it) and sends the link when the app is ready.
+- You get a Chrome notification when the transcript is ready; click it to open SonicBrief.
+
+Instagram, Facebook and Douyin often require a signed-in session. If such a job fails with a login or "no video" message, restart the app with cookies from a browser you are signed in to (off by default):
+
+```powershell
+$env:SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER = "chrome"   # or edge, firefox
+```
+
+The extension only talks to `http://127.0.0.1:7860` and `http://127.0.0.1:3000` on your own computer.
+
 ## Speaker identification
 
 Speaker diarization is optional because its machine-learning packages are large. Install it after the base setup:

@@ -1,0 +1,4 @@
+# SonicBrief desktop tray app (Windows). Installed by setup.ps1 into .venv.
+# The app window is Microsoft Edge (or Chrome) in --app mode, so no webview package is needed.
+pystray>=0.19.5
+Pillow>=10.0

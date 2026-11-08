@@ -1,13 +1,36 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BACKEND_DIR.parent
-load_dotenv(BACKEND_DIR / ".env")
+# Settings file (Gemini key/model, HF token...). Installed apps point this at a
+# per-user folder because their install directory is read-only.
+ENV_FILE = Path(os.getenv("SONICBRIEF_ENV_FILE") or BACKEND_DIR / ".env").resolve()
+load_dotenv(ENV_FILE)
+
+
+def find_ui_dir() -> Path | None:
+    """Folder with the built web UI that the API should also serve, if any.
+
+    Set SONICBRIEF_UI_DIR, or bundle a ``ui`` folder inside the frozen app.
+    """
+    candidates: list[Path] = []
+    configured = os.getenv("SONICBRIEF_UI_DIR")
+    if configured:
+        candidates.append(Path(configured))
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        candidates.append(Path(bundle_dir) / "ui")
+    for candidate in candidates:
+        if (candidate / "index.html").is_file():
+            return candidate.resolve()
+    return None
+
 
 DATA_DIR = Path(os.getenv("SONICBRIEF_DATA_DIR", PROJECT_DIR / "data")).resolve()
 UPLOAD_DIR = DATA_DIR / "uploads"
@@ -51,6 +74,10 @@ ALLOWED_URL_SOURCES = {
     "twitter.com": "twitter",
     "soundcloud.com": "soundcloud",
     "twitch.tv": "twitch",
+    "douyin.com": "douyin",
+    "instagram.com": "instagram",
+    "facebook.com": "facebook",
+    "fb.watch": "facebook",
 }
 
 

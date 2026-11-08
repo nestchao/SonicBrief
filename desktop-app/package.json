@@ -1,0 +1,12 @@
+{
+  "name": "sonicbrief-desktop-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tauri shell that runs the bundled SonicBrief server in a native Windows window.",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

@@ -12,6 +12,7 @@ from urllib.parse import quote
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 import config
 import gemini_settings
@@ -402,6 +403,14 @@ def export_job(job_id: str, format_name: str) -> PlainTextResponse:
     utf8_name = quote(f"{display_stem}.{extension}", safe="")
     disposition = f"attachment; filename=\"{ascii_stem}.{extension}\"; filename*=UTF-8''{utf8_name}"
     return PlainTextResponse(content, media_type=media_type, headers={"Content-Disposition": disposition})
+
+
+# Desktop builds ship the web UI and serve it from the same origin as the API,
+# so no separate web server (or Node) is needed. Mounted last so every /api
+# route above takes precedence.
+_UI_DIR = config.find_ui_dir()
+if _UI_DIR is not None:
+    app.mount("/", StaticFiles(directory=_UI_DIR, html=True), name="ui")
 
 
 if __name__ == "__main__":
