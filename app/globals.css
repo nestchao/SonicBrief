@@ -900,6 +900,25 @@ button, input { font: inherit; }
   font-weight: 800;
 }
 
+/* Download phase: the overall bar barely moves (4 → 18%), so show the transfer itself. */
+.sonic-download-progress {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  margin-top: .55rem;
+}
+
+.sonic-download-progress > *:first-child {
+  opacity: .7;
+}
+
+.sonic-processing-hint {
+  margin: 0;
+  color: #7b8194;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
 .sonic-processing-actions {
   display: flex;
   align-items: center;
