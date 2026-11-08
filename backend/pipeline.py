@@ -229,6 +229,9 @@ def download_audio(
 
         def _on_progress(status: dict[str, Any]) -> None:
             try:
+                if status.get("status") == "finished":
+                    progress_callback("Download complete · preparing audio…", 100.0)
+                    return
                 if status.get("status") != "downloading":
                     return
                 done = float(status.get("downloaded_bytes") or 0)
@@ -245,6 +248,9 @@ def download_audio(
                 speed = float(status.get("speed") or 0)
                 if speed > 0:
                     detail += f" · {format_bytes(speed)}/s"
+                eta = status.get("eta")
+                if eta:
+                    detail += f" · {format_duration(float(eta))} left"
                 progress_callback(detail, percent)
             except Exception:
                 return
@@ -264,6 +270,8 @@ def download_audio(
 
     last_error: Exception | None = None
     info: dict[str, Any] | None = None
+    if progress_callback:
+        progress_callback("Fetching media information…", 0.0)
     for attempt in range(2):
         try:
             with yt_dlp.YoutubeDL(options) as downloader:

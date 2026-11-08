@@ -434,6 +434,16 @@ export function SonicBriefApp() {
                   <span>{activeJob.progress}%</span>
                 </div>
                 <Progress value={activeJob.progress} aria-label="Task progress" />
+                {activeJob.stage === "acquire" && (
+                  <div className="sonic-download-progress">
+                    <Progress value={activeJob.stage_progress ?? 0} aria-label="Download progress" />
+                    <p className="sonic-processing-hint">
+                      {activeJob.stage_detail
+                        ? "Downloading the audio track before transcription; a long video on a slow connection can take several minutes."
+                        : "Contacting the source and preparing the download…"}
+                    </p>
+                  </div>
+                )}
                 <div className="sonic-processing-actions">
                   <button type="button" onClick={() => setShowPipelineDetails((value) => !value)}>{showPipelineDetails ? "Hide processing details" : "Show processing details"}</button>
                   <Button variant="ghost" size="sm" onClick={() => void cancelJob()} disabled={loading}><X />Cancel</Button>
