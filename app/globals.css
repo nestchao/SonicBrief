@@ -2309,3 +2309,98 @@ button, input { font: inherit; }
   font-weight: 600;
   color: #474e60;
 }
+
+/* cookies.txt panel + test result */
+.sonic-downloads-file {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  padding: .85rem .95rem;
+  border: 1px solid #e6e6f2;
+  border-radius: .7rem;
+  background: #fbfbff;
+}
+
+.sonic-downloads-file-head {
+  display: flex;
+  gap: .55rem;
+  align-items: flex-start;
+}
+
+.sonic-downloads-file-head > svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--primary);
+  margin-top: .1rem;
+  flex-shrink: 0;
+}
+
+.sonic-downloads-file-head strong {
+  font-size: .8rem;
+  color: #383d4d;
+}
+
+.sonic-downloads-file-head p {
+  margin: .15rem 0 0;
+  font-size: .72rem;
+  line-height: 1.5;
+  color: #7b8194;
+}
+
+.sonic-downloads-file-input {
+  display: none;
+}
+
+.sonic-downloads-howto {
+  font-size: .72rem;
+  color: #6b7085;
+}
+
+.sonic-downloads-howto summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: .72rem;
+}
+
+.sonic-downloads-howto ol {
+  margin: .4rem 0 .3rem 1.1rem;
+  padding: 0;
+  line-height: 1.55;
+}
+
+.sonic-downloads-howto p {
+  margin: 0;
+  color: #8a8fa3;
+}
+
+.sonic-downloads-test {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.sonic-downloads-test-result ul {
+  margin: .3rem 0 0 1rem;
+  padding: 0;
+  font-size: .7rem;
+  color: #6b7085;
+  line-height: 1.5;
+}
+
+.sonic-downloads-test-result .is-ok {
+  color: #1d7a46;
+  font-size: .74rem;
+}
+
+.sonic-downloads-test-result .is-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  color: #a15c1c;
+  font-size: .74rem;
+}
+
+.sonic-downloads-test-result .is-bad svg {
+  width: .85rem;
+  height: .85rem;
+}

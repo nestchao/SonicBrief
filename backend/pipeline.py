@@ -192,8 +192,9 @@ def _download_error_message(error: Exception) -> str:
     if "sign in to confirm you" in lowered and "not a bot" in lowered:
         return (
             "YouTube asked this computer to prove it is not a bot, so the download was refused. "
-            "Open Settings → Downloads, choose the browser you normally watch YouTube in (it must be "
-            "signed in), then run the job again. This is a check on your network, not on the video."
+            "This is a check on your network, not on the video. Sign in to YouTube in Firefox (most reliable) "
+            "and pick it in Settings → Downloads, or import a cookies.txt there. "
+            "You can also download the video in your browser and use Upload instead."
         )
     if "failed to decrypt with dpapi" in lowered or "could not copy chrome cookie database" in lowered:
         return (
@@ -285,27 +286,82 @@ def download_audio(
         # reliable without changing which video/audio stream yt-dlp selects.
         options["http_chunk_size"] = 5 * 1024 * 1024
 
-    last_error: Exception | None = None
+    def _cookie_related(exc: Exception) -> bool:
+        """Failures that a different cookie source could plausibly fix."""
+        lowered = str(exc).lower()
+        markers = (
+            "not a bot",
+            "sign in to confirm",
+            "please sign in",
+            "failed to decrypt",
+            "dpapi",
+            "cookie database",
+            "cookies are no longer valid",
+        )
+        return any(marker in lowered for marker in markers)
+
+    # Anonymous first, then whatever cookie sources this machine can offer.
+    # `auto` only reaches for cookies after YouTube asks for them, so users who
+    # never see a bot check never pay for this.
+    sources: list[tuple[str, str] | None] = [None]
+    for kind, value in download_settings.source_chain():
+        sources.append((kind, value))
+
     info: dict[str, Any] | None = None
+    last_error: Exception | None = None
     if progress_callback:
         progress_callback("Fetching media information…", 0.0)
-    for attempt in range(2):
+
+    for index, source in enumerate(sources):
+        attempt_options = dict(options)
+        temporary_file: Path | None = None
+        if source is not None:
+            kind, value = source
+            if kind == "browser":
+                attempt_options["cookiesfrombrowser"] = (value,)
+                if progress_callback:
+                    progress_callback(f"Using {value.capitalize()} cookies…", 0.0)
+            else:
+                # yt-dlp rewrites the jar, so hand it a throwaway copy.
+                try:
+                    temporary_file = Path(tempfile.mkstemp(prefix="sonicbrief-cookies-", suffix=".txt")[1])
+                    shutil.copyfile(value, temporary_file)
+                except OSError:
+                    continue
+                attempt_options["cookiefile"] = str(temporary_file)
+                if progress_callback:
+                    progress_callback("Using the imported cookies.txt…", 0.0)
+
         try:
-            with yt_dlp.YoutubeDL(options) as downloader:
-                info = downloader.extract_info(url, download=True)
+            for retry in range(2):
+                try:
+                    with yt_dlp.YoutubeDL(attempt_options) as downloader:
+                        info = downloader.extract_info(url, download=True)
+                    break
+                except yt_dlp.utils.DownloadError as exc:
+                    last_error = exc
+                    if _cookie_related(exc) or retry == 1:
+                        raise
+                    time.sleep(1.0)
             break
         except yt_dlp.utils.DownloadError as exc:
             last_error = exc
-            # A bot check or unreadable cookie store will not clear in a second;
-            # repeating the request only wastes time.
-            lowered = str(exc).lower()
-            if "not a bot" in lowered or "dpapi" in lowered or "cookie database" in lowered:
+            if not _cookie_related(exc) or index == len(sources) - 1:
                 break
-            if attempt == 0:
-                time.sleep(1.0)
+            # Try the next cookie source.
+            continue
+        finally:
+            if temporary_file is not None:
+                temporary_file.unlink(missing_ok=True)
 
     if info is None:
         raise RuntimeError(_download_error_message(last_error or RuntimeError("Unknown download error."))) from last_error
+
+    # Remember what worked so later jobs skip the sources that do not.
+    if source is not None:
+        download_settings.record_last_good("file" if source[0] == "file" else source[1])
+    else:
+        download_settings.record_last_good(None)
 
     candidates = sorted(
         (item for item in directory.glob("source.*") if not item.name.endswith(".part")),
