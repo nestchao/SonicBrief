@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, ExternalLink, FolderOpen, Puzzle } from "lucide-react";
+import { Check, Compass, Copy, ExternalLink, FolderOpen, Globe, Puzzle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:7860";
+
+const BROWSER_LABELS: Record<string, string> = {
+  "chrome.exe": "Google Chrome",
+  "msedge.exe": "Microsoft Edge",
+};
 
 type BrowserTarget = { name: string; url: string };
 
@@ -18,10 +23,13 @@ type ExtensionInfo = {
 type Props = {
   /** Rendered inside the sidebar: fewer words, no heading. */
   compact?: boolean;
+  /** First-run panel dismissal ("don't show this again"). */
   onDismiss?: () => void;
+  /** Corner ✕ for the compact card. */
+  onClose?: () => void;
 };
 
-export function ExtensionInstall({ compact = false, onDismiss }: Props) {
+export function ExtensionInstall({ compact = false, onDismiss, onClose }: Props) {
   const [info, setInfo] = useState<ExtensionInfo | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,11 +61,12 @@ export function ExtensionInstall({ compact = false, onDismiss }: Props) {
     }
   }
 
-  async function call(action: "open-browser" | "open-folder") {
+  async function call(action: "open-browser" | "open-folder", browserName?: string) {
     setBusy(action);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/extension/${action}`, { method: "POST" });
+      const query = action === "open-browser" && browserName ? `?name=${encodeURIComponent(browserName)}` : "";
+      const response = await fetch(`${API_BASE}/api/extension/${action}${query}`, { method: "POST" });
       if (!response.ok) {
         const detail = (await response.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(detail?.detail || "Windows refused the request.");
@@ -69,49 +78,137 @@ export function ExtensionInstall({ compact = false, onDismiss }: Props) {
     }
   }
 
-  const browser = info?.browsers?.[0];
+  /** One click a la XDM: put the path on the clipboard and open that browser's extensions page. */
+  async function installFor(target: BrowserTarget) {
+    await copyPath();
+    await call("open-browser", target.name);
+  }
 
   return (
     <div className={"sonic-extension" + (compact ? " is-compact" : "")}>
+      {onClose && (
+        <button
+          type="button"
+          className="sonic-extension-close"
+          onClick={onClose}
+          title="Hide this card (you can reopen it from “Chrome extension setup”)"
+          aria-label="Hide the extension setup card"
+        >
+          <X />
+        </button>
+      )}
       {!compact && (
         <div className="sonic-extension-head">
           <Puzzle />
           <div>
-            <h3>Send videos from Chrome</h3>
-            <p>Install the SonicBrief extension so the video you are watching becomes one click.</p>
+            <h3>Install the browser extension</h3>
+            <p>
+              The extension sends the video you are watching to SonicBrief. Chrome needs it loaded once; these five
+              steps take about a minute.
+            </p>
           </div>
         </div>
       )}
 
-      <div className="sonic-extension-drop">
-        <Puzzle />
-        <span>{browser ? `Install the extension in ${browser.name.replace(".exe", "")}` : "Install the Chrome extension"}</span>
-      </div>
+      <ol className="sonic-guide-steps">
+        <li>
+          <span className="sonic-guide-number">1</span>
+          <div className="sonic-guide-body">
+            <strong>Open your browser’s extensions page</strong>
+            <p>Pick your browser — the page opens and the folder path is copied for you.</p>
+            <div className="sonic-browser-grid">
+              {info?.browsers?.length ? (
+                info.browsers.map((target) => (
+                  <button
+                    key={target.name}
+                    type="button"
+                    className="sonic-browser-button"
+                    onClick={() => void installFor(target)}
+                    disabled={!info.exists || busy === "open-browser"}
+                  >
+                    {target.name.startsWith("chrome") ? <Compass /> : <Globe />}
+                    {BROWSER_LABELS[target.name] || target.name.replace(".exe", "")}
+                  </button>
+                ))
+              ) : (
+                <p className="sonic-extension-warning">Chrome or Edge was not found on this computer.</p>
+              )}
+            </div>
+          </div>
+        </li>
 
-      <ol className="sonic-extension-steps">
         <li>
-          <strong>Copy this folder path</strong>
-          <code title={info?.path || ""}>{info?.exists ? info.path : info ? info.path + " (not found)" : "locating…"}</code>
-          <Button variant="outline" size="sm" onClick={() => void copyPath()} disabled={!info?.exists}>
-            {copied ? <Check /> : <Copy />}
-            {copied ? "Copied" : "Copy path"}
-          </Button>
+          <span className="sonic-guide-number">2</span>
+          <div className="sonic-guide-body">
+            <strong>Turn on “Developer mode”</strong>
+            <p>It sits in the top-right corner of that page. The switch turns blue.</p>
+            <div className="sonic-guide-illustration" aria-hidden="true">
+              <span>Developer mode</span>
+              <svg viewBox="0 0 44 20" width="44" height="20">
+                <rect x="1" y="1" width="42" height="18" rx="9" fill="#7c6cf0" />
+                <circle cx="33" cy="10" r="7" fill="#fff" />
+              </svg>
+            </div>
+          </div>
         </li>
+
         <li>
-          <strong>Open the extensions page</strong>
-          <Button variant="outline" size="sm" onClick={() => void call("open-browser")} disabled={!browser || busy === "open-browser"}>
-            <ExternalLink />
-            {browser ? `Open ${browser.url.replace("://extensions/", "")}://extensions` : "No Chrome found"}
-          </Button>
+          <span className="sonic-guide-number">3</span>
+          <div className="sonic-guide-body">
+            <strong>Click “Load unpacked”</strong>
+            <p>Three buttons appear once Developer mode is on — it is the first one, on the left.</p>
+            <div className="sonic-guide-illustration" aria-hidden="true">
+              <span className="sonic-guide-chip">Load unpacked</span>
+              <span className="sonic-guide-chip is-muted">Pack extension</span>
+              <span className="sonic-guide-chip is-muted">Update</span>
+            </div>
+          </div>
         </li>
+
         <li>
-          <strong>Turn on Developer mode, click “Load unpacked”, and paste the path</strong>
-          <Button variant="ghost" size="sm" onClick={() => void call("open-folder")} disabled={!info?.exists || busy === "open-folder"}>
-            <FolderOpen />
-            Show the folder
-          </Button>
+          <span className="sonic-guide-number">4</span>
+          <div className="sonic-guide-body">
+            <strong>Paste the path and open the folder</strong>
+            <p>Chrome asks which folder to load — paste this, press Enter, then choose the folder itself.</p>
+            <div className="sonic-extension-path">
+              <code title={info?.path || ""}>{info?.exists ? info.path : info ? info.path + " (not found)" : "locating…"}</code>
+              <Button variant="outline" size="sm" onClick={() => void copyPath()} disabled={!info?.exists}>
+                {copied ? <Check /> : <Copy />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+          </div>
+        </li>
+
+        <li>
+          <span className="sonic-guide-number">5</span>
+          <div className="sonic-guide-body">
+            <strong>Pin SonicBrief to the toolbar</strong>
+            <p>
+              The extension appears in the puzzle-piece menu. Pin it, then open a video and click the icon to
+              transcribe.
+            </p>
+          </div>
         </li>
       </ol>
+
+      <p className="sonic-extension-hint">
+        Nothing appeared after step 4? Check that you selected the folder that contains <code>manifest.json</code> —
+        not its parent — then reload the extensions page.
+      </p>
+
+      <div className="sonic-extension-actions">
+        <Button variant="ghost" size="sm" onClick={() => void call("open-folder")} disabled={!info?.exists || busy === "open-folder"}>
+          <FolderOpen />
+          Show the folder
+        </Button>
+        {info?.browsers?.[0] && (
+          <Button variant="ghost" size="sm" onClick={() => void call("open-browser")} disabled={busy === "open-browser"}>
+            <ExternalLink />
+            Open extensions page
+          </Button>
+        )}
+      </div>
 
       {!info?.exists && info && (
         <p className="sonic-extension-warning">

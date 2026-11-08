@@ -171,10 +171,13 @@ def open_extension_folder() -> dict[str, object]:
 
 
 @app.post("/api/extension/open-browser")
-def open_extension_page() -> dict[str, object]:
+def open_extension_page(name: str | None = None) -> dict[str, object]:
     candidates = _browser_candidates()
+    if name:
+        wanted = name.lower()
+        candidates = [item for item in candidates if item[0].name.lower() == wanted or item[0].stem.lower() == wanted]
     if not candidates:
-        raise HTTPException(status_code=404, detail="Chrome or Edge was not found on this computer.")
+        raise HTTPException(status_code=404, detail="That browser was not found on this computer.")
     exe, url = candidates[0]
     subprocess.Popen([str(exe), url])
     return {"browser": exe.name, "url": url}
