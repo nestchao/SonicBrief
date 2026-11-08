@@ -191,7 +191,20 @@ def _download_error_message(error: Exception) -> str:
     return f"Media download failed after retries: {message}"
 
 
-def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
+def format_bytes(size: float) -> str:
+    value = max(0.0, float(size or 0))
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"
+
+
+def download_audio(
+    url: str,
+    directory: Path,
+    progress_callback: Any = None,
+) -> tuple[Path, dict[str, Any]]:
     source_type = classify_url(url)
     output_template = str(directory / "source.%(ext)s")
     options = {
@@ -209,6 +222,34 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
         "socket_timeout": 30,
     }
+    if progress_callback:
+        # Long downloads used to sit at "acquire 4%" for many minutes, which looks
+        # like a hang. yt-dlp reports bytes here; throttle so we do not hammer the DB.
+        state = {"last_emit": 0.0, "last_percent": -1.0}
+
+        def _on_progress(status: dict[str, Any]) -> None:
+            try:
+                if status.get("status") != "downloading":
+                    return
+                done = float(status.get("downloaded_bytes") or 0)
+                total = float(status.get("total_bytes") or status.get("total_bytes_estimate") or 0)
+                percent = (done / total * 100.0) if total > 0 else 0.0
+                now = time.monotonic()
+                if percent - state["last_percent"] < 1.0 and now - state["last_emit"] < 3.0:
+                    return
+                state["last_emit"] = now
+                state["last_percent"] = percent
+                detail = f"Downloading media · {format_bytes(done)}"
+                if total > 0:
+                    detail += f" / {format_bytes(total)} ({percent:.0f}%)"
+                speed = float(status.get("speed") or 0)
+                if speed > 0:
+                    detail += f" · {format_bytes(speed)}/s"
+                progress_callback(detail, percent)
+            except Exception:
+                return
+
+        options["progress_hooks"] = [_on_progress]
     # Instagram, Facebook and Douyin frequently require a signed-in session.
     # Off by default; when enabled, yt-dlp reads the cookie store of the named
     # browser ("chrome", "edge", "firefox") for the target site only.
@@ -255,19 +296,70 @@ def download_audio(url: str, directory: Path) -> tuple[Path, dict[str, Any]]:
     return candidates[0], metadata
 
 
+_SIMPLIFIED_CHINESE_PROMPT = "以下是普通话的对话内容，请使用简体中文转写。"
+_CHINESE_LANGUAGE_PREFIXES = ("zh", "yue")
+
+
+def is_chinese_language(code: Any) -> bool:
+    return bool(code) and str(code).lower().startswith(_CHINESE_LANGUAGE_PREFIXES)
+
+
+def detect_spoken_language(model: Any, path: Path) -> str | None:
+    """Cheap probe (first two minutes) used only to decide the Chinese script hint.
+
+    Whisper's Chinese output flips between Simplified and Traditional depending on
+    the content, so we bias it explicitly instead of hoping.
+    """
+    probe_file: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
+            probe_file = Path(handle.name)
+        result = subprocess.run(
+            [
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(path),
+                "-t", "120", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(probe_file),
+            ],
+            capture_output=True, text=True, check=False,
+        )
+        if result.returncode != 0:
+            return None
+        from faster_whisper.audio import decode_audio
+
+        audio = decode_audio(str(probe_file), sampling_rate=16000)
+        language, probability, _ = model.detect_language(audio)
+        return language if probability >= 0.5 else None
+    except Exception:
+        return None
+    finally:
+        if probe_file is not None:
+            probe_file.unlink(missing_ok=True)
+
+
 def local_transcribe(path: Path, model_name: str, language: str, progress_callback: Any = None) -> dict[str, Any]:
     if progress_callback:
         progress_callback("loading_model", 0, 0.0, f"Loading Whisper {model_name} model…")
     model, device, compute_type = get_model(model_name)
+    target_language = None if language == "auto" else language
+    initial_prompt: str | None = None
     if progress_callback:
         progress_callback("transcribing", 0, 0.0, f"Whisper is transcribing on {device.upper()} ({compute_type})…")
+    if is_chinese_language(target_language):
+        initial_prompt = _SIMPLIFIED_CHINESE_PROMPT
+        if progress_callback:
+            progress_callback("transcribing", 0, 0.0, "Chinese audio · transcribing in Simplified Chinese…")
+    elif target_language is None:
+        if is_chinese_language(detect_spoken_language(model, path)):
+            initial_prompt = _SIMPLIFIED_CHINESE_PROMPT
+            if progress_callback:
+                progress_callback("transcribing", 0, 0.0, "Chinese audio detected · transcribing in Simplified Chinese…")
     segments_iter, info = model.transcribe(
         str(path),
-        language=None if language == "auto" else language,
+        language=target_language,
         beam_size=5,
         vad_filter=True,
         word_timestamps=True,
         condition_on_previous_text=True,
+        initial_prompt=initial_prompt,
     )
     segments: list[dict[str, Any]] = []
     logprobs: list[float] = []
@@ -600,10 +692,20 @@ def make_summary(
         if custom_instructions
         else ""
     )
+    target_language_name = normalize_summary_language(language)
+    simplified_script_block = ""
+    if "simplified" in target_language_name.lower():
+        # Whisper flips between Simplified and Traditional Chinese, and the model
+        # happily mirrors a Traditional transcript unless told otherwise.
+        simplified_script_block = (
+            "\nThe transcript may be written in Traditional Chinese characters. "
+            "Write your summary using Simplified Chinese characters only, even where the source uses Traditional ones.\n"
+        )
+
     prompt = f"""
 You are summarizing a timestamped transcript for personal study.
-Write the summary in {normalize_summary_language(language)}.
-
+Write the summary in {target_language_name}.
+{simplified_script_block}
 SUMMARY STYLE: {SUMMARY_STYLE_LABELS[style_id]}
 {style_instruction}
 {custom_block}
@@ -641,7 +743,16 @@ def run_job(
             temp_dir = Path(temp_dir_value)
             check_cancelled(job_id)
             if source_url:
-                media_path, metadata = download_audio(source_url, temp_dir)
+                def report_download(detail: str, percent: float) -> None:
+                    storage.update_job(
+                        job_id,
+                        progress=4 + round((max(0.0, min(percent, 100.0)) / 100.0) * 14),
+                        stage="acquire",
+                        stage_detail=detail,
+                        stage_progress=int(max(0.0, min(percent, 100.0))),
+                    )
+
+                media_path, metadata = download_audio(source_url, temp_dir, progress_callback=report_download)
                 storage.update_job(
                     job_id,
                     title=metadata["title"],
