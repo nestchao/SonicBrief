@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
+import subprocess
+import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -20,6 +23,62 @@ import pipeline
 import storage
 
 EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sonicbrief-worker")
+
+
+def find_extension_dir() -> Path:
+    """Locate the Chrome extension folder that ships with the app.
+
+    Checked in order: an explicit override, the frozen bundle (PyInstaller data,
+    ``<install>\\extension`` or a Tauri resource), then the repository checkout.
+    """
+    candidates: list[Path] = []
+    configured = os.getenv("SONICBRIEF_EXTENSION_DIR")
+    if configured:
+        candidates.append(Path(configured))
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "extension")
+    if getattr(sys, "frozen", False):
+        server_dir = Path(sys.executable).resolve().parent
+        candidates.extend([
+            server_dir / "extension",
+            server_dir.parent / "extension",
+            server_dir.parent / "resources" / "extension",
+        ])
+    candidates.append(config.PROJECT_DIR / "extension")
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if (resolved / "manifest.json").is_file():
+            return resolved
+    return candidates[0] if candidates else config.PROJECT_DIR / "extension"
+
+
+_BROWSER_TARGETS = (
+    ("chrome.exe", "chrome://extensions/", "Google\\Chrome\\Application"),
+    ("msedge.exe", "edge://extensions/", "Microsoft\\Edge\\Application"),
+)
+
+
+def _browser_candidates() -> list[tuple[Path, str]]:
+    """Browsers that can host the extension, with the URL that opens their extensions page."""
+    found: list[tuple[Path, str]] = []
+    roots = [os.getenv("PROGRAMFILES"), os.getenv("PROGRAMFILES(X86)"), os.getenv("LOCALAPPDATA")]
+    for exe_name, url, vendor in _BROWSER_TARGETS:
+        located = shutil.which(exe_name)
+        if located:
+            found.append((Path(located), url))
+        for root in roots:
+            if not root:
+                continue
+            candidate = Path(root) / vendor / exe_name
+            if candidate.is_file():
+                found.append((candidate, url))
+                break
+    return found
+
 BACKEND_INSTANCE_ID = uuid.uuid4().hex
 
 
@@ -87,6 +146,41 @@ def health() -> dict[str, object]:
         "diarization_configured": bool(config.HF_TOKEN),
         "models": config.ALLOWED_MODELS,
     }
+
+
+@app.get("/api/extension")
+def extension_info() -> dict[str, object]:
+    """Where the bundled Chrome extension lives, and which browser can host it."""
+    folder = find_extension_dir()
+    browsers = _browser_candidates()
+    return {
+        "path": str(folder),
+        "exists": (folder / "manifest.json").is_file(),
+        "browsers": [{"name": exe.stem, "url": url} for exe, url in browsers],
+    }
+
+
+@app.post("/api/extension/open-folder")
+def open_extension_folder() -> dict[str, object]:
+    folder = find_extension_dir()
+    if not (folder / "manifest.json").is_file():
+        raise HTTPException(status_code=404, detail="The extension files were not found in this installation.")
+    if os.name == "nt":
+        subprocess.Popen(["explorer", str(folder)])
+    return {"path": str(folder)}
+
+
+@app.post("/api/extension/open-browser")
+def open_extension_page(name: str | None = None) -> dict[str, object]:
+    candidates = _browser_candidates()
+    if name:
+        wanted = name.lower()
+        candidates = [item for item in candidates if item[0].name.lower() == wanted or item[0].stem.lower() == wanted]
+    if not candidates:
+        raise HTTPException(status_code=404, detail="That browser was not found on this computer.")
+    exe, url = candidates[0]
+    subprocess.Popen([str(exe), url])
+    return {"browser": exe.name, "url": url}
 
 
 @app.get("/api/self-test/audio-decode")

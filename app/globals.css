@@ -1925,3 +1925,341 @@ button, input { font: inherit; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Browser extension install helper ---- */
+.sonic-extension {
+  display: flex;
+  flex-direction: column;
+  gap: .7rem;
+  padding: .9rem 1rem;
+  border: 1px solid #e6e6f0;
+  border-radius: .85rem;
+  background: #fbfbff;
+}
+
+.sonic-extension.is-compact {
+  padding: .7rem .8rem;
+  gap: .5rem;
+}
+
+.sonic-extension-head {
+  display: flex;
+  gap: .6rem;
+  align-items: flex-start;
+}
+
+.sonic-extension-head svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-top: .15rem;
+}
+
+.sonic-extension-head h3 {
+  margin: 0;
+  font-size: .85rem;
+  color: #383d4d;
+}
+
+.sonic-extension-head p {
+  margin: .15rem 0 0;
+  font-size: .74rem;
+  line-height: 1.45;
+  color: #7b8194;
+}
+
+.sonic-extension-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 4.6rem;
+  padding: .6rem;
+  border: 1.5px dashed #c9c9e4;
+  border-radius: .7rem;
+  background: #fff;
+  color: #6b6f85;
+  font-size: .72rem;
+  text-align: center;
+}
+
+.sonic-extension.is-compact .sonic-extension-drop {
+  min-height: 3.4rem;
+}
+
+.sonic-extension-drop svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #b3b3d4;
+}
+
+.sonic-extension-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.sonic-extension-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.sonic-extension-steps strong {
+  font-size: .72rem;
+  color: #474e60;
+  font-weight: 600;
+}
+
+.sonic-extension-steps code {
+  display: block;
+  padding: .3rem .45rem;
+  border-radius: .4rem;
+  background: #f1f1f8;
+  color: #5b5f75;
+  font-size: .66rem;
+  word-break: break-all;
+}
+
+.sonic-extension-steps button {
+  align-self: flex-start;
+}
+
+.sonic-extension-warning {
+  margin: 0;
+  font-size: .7rem;
+  line-height: 1.45;
+  color: #a15c1c;
+}
+
+.sonic-extension-dismiss {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #8b90a4;
+  font-size: .68rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.sonic-firstrun-extension {
+  max-width: 34rem;
+  margin: .5rem auto 0;
+  width: 100%;
+}
+
+.sonic-extension {
+  position: relative;
+}
+
+.sonic-extension-close {
+  position: absolute;
+  top: .35rem;
+  right: .35rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: .3rem;
+  background: transparent;
+  color: #9aa0b4;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sonic-extension-close:hover {
+  background: #eceafa;
+  color: #5b5f75;
+}
+
+.sonic-extension-close svg {
+  width: .8rem;
+  height: .8rem;
+}
+
+.sonic-extension-reopen {
+  align-self: flex-start;
+  border: 1px dashed #d3d3e6;
+  border-radius: .5rem;
+  background: #fbfbff;
+  padding: .35rem .55rem;
+  color: #6b6f85;
+  font-size: .7rem;
+  cursor: pointer;
+}
+
+.sonic-extension-reopen:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Browser grid, modelled on XDM's "Browser monitoring" panel */
+.sonic-browser-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .5rem;
+}
+
+.sonic-browser-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: .6rem .5rem;
+  border: 1px solid #d9d9ea;
+  border-radius: .5rem;
+  background: #fff;
+  color: #4a4f63;
+  font-size: .76rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sonic-browser-button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.sonic-browser-button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.sonic-browser-button svg {
+  width: .95rem;
+  height: .95rem;
+}
+
+.sonic-extension-path {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.sonic-extension-path code {
+  flex: 1;
+}
+
+.sonic-extension-hint {
+  margin: 0;
+  font-size: .7rem;
+  line-height: 1.45;
+  color: #7b8194;
+}
+
+.sonic-extension-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.sonic-settings-tabs {
+  margin: 0 1.1rem;
+}
+
+/* Keep the dialog's flex/overflow chain intact now that the body lives in a Tabs panel:
+   without this the wheel scrolls the page behind instead of the settings content. */
+.sonic-settings-tabs-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.sonic-settings-tabs-root > [role="tablist"] {
+  flex: none;
+}
+
+.sonic-settings-tabs-root > [role="tabpanel"] {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sonic-settings-tabs-root > [role="tabpanel"] {
+  overscroll-behavior: contain;
+}
+
+/* Five-step extension guide */
+.sonic-guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+
+.sonic-guide-steps > li {
+  display: flex;
+  gap: .6rem;
+  align-items: flex-start;
+}
+
+.sonic-guide-number {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #efeaff;
+  color: var(--primary);
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.sonic-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.sonic-guide-body strong {
+  font-size: .78rem;
+  color: #383d4d;
+}
+
+.sonic-guide-body p {
+  margin: 0;
+  font-size: .72rem;
+  line-height: 1.45;
+  color: #7b8194;
+}
+
+.sonic-guide-illustration {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .45rem .6rem;
+  border: 1px solid #e6e6f2;
+  border-radius: .5rem;
+  background: #fbfbff;
+  font-size: .7rem;
+  color: #5b5f75;
+  width: fit-content;
+}
+
+.sonic-guide-chip {
+  padding: .2rem .45rem;
+  border: 1px solid #d9d9ea;
+  border-radius: .35rem;
+  background: #fff;
+  font-size: .66rem;
+  color: #4a4f63;
+}
+
+.sonic-guide-chip.is-muted {
+  opacity: .55;
+}

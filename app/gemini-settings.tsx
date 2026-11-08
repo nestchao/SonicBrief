@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { Check, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, Settings, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExtensionInstall } from "@/app/extension-install";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -221,7 +223,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
   return (
     <>
       <Button variant="outline" size="sm" className="sonic-settings-button" onClick={openSettings}>
-        <Settings /> Gemini Settings
+        <Settings /> Settings
         {configured && <span className="sonic-settings-dot" aria-label="Gemini configured"><Check /></span>}
       </Button>
 
@@ -234,14 +236,20 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
           <section className="sonic-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="gemini-settings-title">
             <div className="sonic-settings-header">
               <div>
-                <p className="sonic-result-eyebrow"><KeyRound />GOOGLE AI STUDIO</p>
-                <h2 id="gemini-settings-title">Gemini settings</h2>
-                <p>Connect your own API key and choose from the Gemini models Google makes available to that key.</p>
+                <p className="sonic-result-eyebrow"><KeyRound />SETTINGS</p>
+                <h2 id="gemini-settings-title">Settings</h2>
+                <p>Connect your Gemini API key, and install the Chrome extension that sends videos to SonicBrief.</p>
               </div>
               <button type="button" className="sonic-settings-close" aria-label="Close settings" onClick={() => setOpen(false)}><X /></button>
             </div>
 
-            <div className="sonic-settings-body">
+            <Tabs defaultValue="gemini" className="sonic-settings-tabs-root">
+              <TabsList className="sonic-settings-tabs">
+                <TabsTrigger value="gemini">Gemini</TabsTrigger>
+                <TabsTrigger value="extension">Browser extension</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="gemini" className="sonic-settings-body">
               <div className={configured ? "sonic-settings-connection is-connected" : "sonic-settings-connection"}>
                 <span className="sonic-settings-connection-icon"><Check /></span>
                 <div>
@@ -350,7 +358,12 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                   </Button>
                 </div>
               </div>
-            </div>
+              </TabsContent>
+
+              <TabsContent value="extension" className="sonic-settings-body">
+                <ExtensionInstall />
+              </TabsContent>
+            </Tabs>
           </section>
         </div>,
         document.body,
