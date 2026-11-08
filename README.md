@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <img src="public/sonicbrief-logo.png" alt="SonicBrief" width="104">
+</p>
+
+<p align="center">
   <img src="docs/sonicbrief-hero.jpg" alt="SonicBrief local-first transcription workspace" width="100%">
 </p>
 
