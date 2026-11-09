@@ -7,34 +7,54 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -50,6 +70,7 @@ import dev.sonicbrief.app.ui.result.JobDetailScreen
 import dev.sonicbrief.app.ui.result.JobDetailViewModel
 import dev.sonicbrief.app.ui.settings.SettingsScreen
 import dev.sonicbrief.app.ui.settings.SettingsViewModel
+import dev.sonicbrief.app.ui.theme.SonicBriefTheme
 import java.util.UUID
 
 @AndroidEntryPoint
@@ -60,6 +81,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         if (savedInstanceState == null) handleShareIntent(intent)
         setContent {
             SonicBriefTheme {
@@ -106,20 +128,6 @@ private object Routes {
 }
 
 @Composable
-fun SonicBriefTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    val scheme = when {
-        Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme(primary = Color(0xFF8AB4F8))
-        else -> lightColorScheme(primary = Color(0xFF1A5FD0))
-    }
-    MaterialTheme(colorScheme = scheme) {
-        Surface(color = MaterialTheme.colorScheme.background, content = content)
-    }
-}
-
-@Composable
 private fun SonicBriefApp(
     homeViewModel: HomeViewModel,
     settingsViewModel: SettingsViewModel,
@@ -135,26 +143,29 @@ private fun SonicBriefApp(
     val detailState by jobDetailViewModel.state.collectAsStateWithLifecycle()
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (route != Routes.JOB) {
-                NavigationBar {
-                    listOf(
-                        Triple(Routes.HOME, "Home", Icons.Filled.Home),
-                        Triple(Routes.HISTORY, "History", Icons.Filled.List),
-                        Triple(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
-                    ).forEach { (target, label, icon) ->
-                        NavigationBarItem(
-                            selected = route == target,
-                            onClick = { navigateTop(nav, target) },
-                            icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(label) },
-                        )
-                    }
-                }
+            AnimatedVisibility(
+                visible = route != Routes.JOB,
+                enter = slideInVertically(tween(220)) { it } + fadeIn(tween(180)),
+                exit = slideOutVertically(tween(180)) { it } + fadeOut(tween(120)),
+            ) {
+                FloatingNavBar(
+                    currentRoute = route,
+                    onNavigate = { navigateTop(nav, it) },
+                )
             }
         },
     ) { padding: PaddingValues ->
-        NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(padding)) {
+        NavHost(
+            navController = nav,
+            startDestination = Routes.HOME,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding()),
+        ) {
             composable(Routes.HOME) {
                 HomeScreen(
                     state = homeState,
@@ -199,10 +210,14 @@ private fun SonicBriefApp(
                 val id = entry.arguments?.getString("id")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                 val job = jobs.firstOrNull { it.id == id }
                 when {
-                    job == null -> Box { Text("This item no longer exists.") }
-                    job.status == JobStatus.ACTIVE -> Box(Modifier.padding(24.dp)) {
-                        Text("${job.displayTitle}\n${job.stageDetail ?: "Working"} — ${job.progress}%")
-                    }
+                    job == null -> Box(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("This item no longer exists.") }
+                    job.status == JobStatus.ACTIVE -> Box(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("${job.displayTitle}\n${job.stageDetail ?: "Working"} — ${job.progress}%") }
                     else -> {
                         LaunchedEffect(job.id, job.status, job.updatedAt) { jobDetailViewModel.openJob(job) }
                         JobDetailScreen(
@@ -225,6 +240,80 @@ private fun SonicBriefApp(
                     }
                 }
             }
+        }
+    }
+}
+
+private data class NavItem(val route: String, val label: String, val icon: ImageVector)
+
+/** Detached, pill-shaped navigation bar that floats above the content. */
+@Composable
+private fun FloatingNavBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    val items = listOf(
+        NavItem(Routes.HOME, "Home", Icons.Filled.Home),
+        NavItem(Routes.HISTORY, "Library", Icons.Filled.List),
+        NavItem(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(start = 20.dp, end = 20.dp, bottom = 14.dp, top = 6.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            items.forEach { item ->
+                val selected = currentRoute == item.route
+                NavBarItem(item = item, selected = selected, onClick = { onNavigate(item.route) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavBarItem(
+    item: NavItem,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interaction = androidx.compose.runtime.remember { MutableInteractionSource() }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .then(
+                if (selected) {
+                    Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
+                } else Modifier,
+            )
+            .clickable(interactionSource = interaction, indication = null, role = Role.Tab, onClick = onClick)
+            .height(46.dp)
+            .padding(horizontal = if (selected) 18.dp else 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(item.icon, contentDescription = item.label, tint = contentColor, modifier = Modifier.size(21.dp))
+        if (selected) {
+            Text(
+                item.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor,
+            )
         }
     }
 }
