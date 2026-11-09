@@ -43,6 +43,8 @@ FONT_OUT = ROOT / "site" / "assets" / "fonts"
 DESKTOP_CROP = (0, 29, 0, 0)
 DESKTOP_WIDTHS = (1920, 960)
 ANDROID_WIDTH = 720
+# 30 / 292 — the screen radius at the size the site renders it.
+ANDROID_RADIUS_RATIO = 30 / 292
 
 WEBP_QUALITY = 82
 
@@ -117,7 +119,22 @@ def build_android() -> None:
         with Image.open(source) as raw:
             shot = raw.convert("RGB")
         height = round(shot.height * ANDROID_WIDTH / shot.width)
-        webp(shot.resize((ANDROID_WIDTH, height), Image.LANCZOS), IMG_OUT / f"{stem}.webp")
+        resized = shot.resize((ANDROID_WIDTH, height), Image.LANCZOS).convert("RGBA")
+        radius = round(ANDROID_WIDTH * ANDROID_RADIUS_RATIO)
+        resized.putalpha(corner_mask(resized.size, radius))
+        out = IMG_OUT / f"{stem}.webp"
+        resized.save(out, "WEBP", quality=WEBP_QUALITY, method=6)
+        log(f"{out.relative_to(ROOT)}  {resized.width}x{resized.height}  radius {radius}px  {out.stat().st_size / 1024:.0f} KB")
+
+
+def corner_mask(size: tuple[int, int], radius: int, scale: int = 4) -> Image.Image:
+    """Antialiased rounded-rectangle alpha mask (supersampled 4x)."""
+    width, height = size
+    big = Image.new("L", (width * scale, height * scale), 0)
+    ImageDraw.Draw(big).rounded_rectangle(
+        (0, 0, width * scale - 1, height * scale - 1), radius * scale, fill=255
+    )
+    return big.resize(size, Image.LANCZOS)
 
 
 def rounded(image: Image.Image, radius: int) -> Image.Image:
