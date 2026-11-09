@@ -111,6 +111,18 @@ jobs:
             echo "Manual run: skipping draft release creation."
             exit 0
           fi
-          gh release view "$GITHUB_REF_NAME" 2>/dev/null || \
-            gh release create "$GITHUB_REF_NAME" --title "SonicBrief Android $GITHUB_REF_NAME (standalone)" --generate-notes --draft
-          gh release upload "$GITHUB_REF_NAME" android/app/build/outputs/apk/release/*/*.apk android/app/build/outputs/apk/release/SHA256SUMS.txt --clobber
+          TAG="$GITHUB_REF_NAME"
+          gh release view "$TAG" > /dev/null 2>&1 || \
+            gh release create "$TAG" \
+              --title "SonicBrief Android ${TAG#android-v} (standalone)" \
+              --generate-notes --draft --verify-tag
+          # ABI splits land directly in release/; older layouts nested them one level down.
+          mapfile -t APKS < <(find android/app/build/outputs/apk/release -type f -name '*.apk')
+          if [ "${#APKS[@]}" -eq 0 ]; then
+            echo "No release APKs were produced." >&2
+            exit 1
+          fi
+          printf 'Uploading %d APK(s):\n' "${#APKS[@]}"
+          printf '  %s\n' "${APKS[@]}"
+          gh release upload "$TAG" "${APKS[@]}" \
+            android/app/build/outputs/apk/release/SHA256SUMS.txt --clobber
