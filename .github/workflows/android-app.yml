@@ -41,8 +41,19 @@ jobs:
       - name: Install Android SDK 36
         shell: bash
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+          # The runner shells out with `-o pipefail`, so `yes | sdkmanager --licenses` dies on
+          # SIGPIPE (broken pipe) and fails the step. Tolerate that and resolve sdkmanager by path.
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found (ANDROID_HOME=$ANDROID_HOME)" >&2
+            exit 1
+          fi
+          yes 2>/dev/null | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+          echo "SDK ready: $("$SDKMANAGER" --version 2>/dev/null | tail -1)"
 
       - name: Decode signing keystore
         if: startsWith(github.ref, 'refs/tags/android-v')
