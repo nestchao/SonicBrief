@@ -69,10 +69,19 @@ class HomeViewModel @Inject constructor(
     fun clearError() = _state.update { it.copy(error = null) }
     fun consumeOpenJob() = _state.update { it.copy(openJobId = null) }
 
+    /** Counts inbound shares so the UI can jump to Home when one arrives. */
+    private val _shareRequests = MutableStateFlow(0)
+    val shareRequests: StateFlow<Int> = _shareRequests.asStateFlow()
+
     /** Called for links shared from other apps. */
     fun prefillSharedText(text: String) {
         val link = URL_PATTERN.find(text)?.value ?: return
         _state.update { it.copy(url = link, pendingFileUri = null, pendingFileName = null, error = null) }
+    }
+
+    /** Called by the host activity after routing an ACTION_SEND intent here. */
+    fun notifySharedContent() {
+        _shareRequests.update { it + 1 }
     }
 
     fun setPendingFile(uri: Uri, name: String?) =

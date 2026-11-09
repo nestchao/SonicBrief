@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
         } else {
             intent.getStringExtra(Intent.EXTRA_TEXT)?.let(homeViewModel::prefillSharedText)
         }
+        homeViewModel.notifySharedContent()
     }
 }
 
@@ -141,6 +142,12 @@ private fun SonicBriefApp(
     val hasKey by homeViewModel.hasApiKey.collectAsStateWithLifecycle()
     val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
     val detailState by jobDetailViewModel.state.collectAsStateWithLifecycle()
+    val shareRequests by homeViewModel.shareRequests.collectAsStateWithLifecycle()
+
+    // A share from YouTube/Bilibili/a file manager always lands on Home with the content ready.
+    LaunchedEffect(shareRequests) {
+        if (shareRequests > 0) navigateTop(nav, Routes.HOME)
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
