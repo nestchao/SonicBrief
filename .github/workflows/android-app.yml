@@ -1,0 +1,105 @@
+name: Android App
+
+# Standalone APK (Gemini-only, no Supabase, no pairing). Runs on demand or for
+# release tags; the APKs stay under GitHub asset limits (ABI splits + one
+# universal APK, all signed in CI).
+on:
+  push:
+    tags:
+      - "android-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#android-v}"
+          PKG_VERSION="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag android-v$TAG_VERSION does not match package.json version $PKG_VERSION." >&2
+            exit 1
+          fi
+          echo "Version $TAG_VERSION matches package.json."
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Decode signing keystore
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is not set; cannot build a signed release." >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/android-release.keystore"
+
+      - name: Run unit tests
+        shell: bash
+        run: ./android/gradlew -p android :app:testDebugUnitTest --console=plain
+
+      - name: Build signed release APKs
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/android-release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: ./android/gradlew -p android assembleRelease --console=plain
+
+      - name: Build debug APKs (manual runs only, no signing secrets needed)
+        if: github.ref_type != 'tag'
+        shell: bash
+        run: ./android/gradlew -p android assembleDebug --console=plain
+
+      - name: Verify APK signatures
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        shell: bash
+        run: |
+          for apk in android/app/build/outputs/apk/release/*/*.apk android/app/build/outputs/apk/release/*.apk; do
+            [ -f "$apk" ] || continue
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | head -5
+          done
+
+      - name: Write SHA256SUMS
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        run: |
+          cd android/app/build/outputs/apk/release
+          sha256sum $(find . -name '*.apk') > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create tagged draft GitHub Release (publication remains manual)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.ref_type }}" != "tag" ]; then
+            echo "Manual run: skipping draft release creation."
+            exit 0
+          fi
+          gh release view "$GITHUB_REF_NAME" 2>/dev/null || \
+            gh release create "$GITHUB_REF_NAME" --title "SonicBrief Android $GITHUB_REF_NAME (standalone)" --generate-notes --draft
+          gh release upload "$GITHUB_REF_NAME" android/app/build/outputs/apk/release/*/*.apk android/app/build/outputs/apk/release/SHA256SUMS.txt --clobber

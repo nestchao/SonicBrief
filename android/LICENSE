@@ -1,0 +1,23 @@
+SonicBrief for Android
+Copyright (C) 2026 SonicBrief contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3 of the License only.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+SPDX-License-Identifier: GPL-3.0-only
+
+The canonical GNU GPL version 3 license text is available from the
+Free Software Foundation at:
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+A verbatim copy of the GNU GPL v3.0 license text must accompany
+SonicBrief for Android binary distributions.
+
+Note: this GPL-3.0-only notice covers the `android/` subtree. The rest of
+this repository keeps its own license (see the repository root).
