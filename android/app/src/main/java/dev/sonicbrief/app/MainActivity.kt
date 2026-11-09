@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -133,11 +138,15 @@ private fun SonicBriefApp(
         bottomBar = {
             if (route != Routes.JOB) {
                 NavigationBar {
-                    listOf(Routes.HOME to "Home", Routes.HISTORY to "History", Routes.SETTINGS to "Settings").forEach { (target, label) ->
+                    listOf(
+                        Triple(Routes.HOME, "Home", Icons.Filled.Home),
+                        Triple(Routes.HISTORY, "History", Icons.Filled.List),
+                        Triple(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
+                    ).forEach { (target, label, icon) ->
                         NavigationBarItem(
                             selected = route == target,
                             onClick = { navigateTop(nav, target) },
-                            icon = { Text(label.take(1)) },
+                            icon = { Icon(icon, contentDescription = null) },
                             label = { Text(label) },
                         )
                     }
