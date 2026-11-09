@@ -150,6 +150,18 @@ $env:SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER = "chrome"   # or edge, firefox
 
 The extension only talks to `http://127.0.0.1:7860` and `http://127.0.0.1:3000` on your own computer.
 
+## Android app (standalone)
+
+A standalone Android APK in `android/` (`applicationId dev.sonicbrief.mobile`) — no Supabase, no Windows pairing, no accounts. It transcribes and summarizes on the phone with your own Gemini key.
+
+- **Install:** grab the signed APK from the `android-v*` GitHub release (universal APK, or the one matching your ABI). Or build it yourself: `cd android && ./gradlew assembleDebug` (debug) or `scripts/build_android.ps1` (runs tests, then a signed release when the `ANDROID_KEYSTORE_*` env vars are set, otherwise debug; `-Install` runs `adb install -r` on the universal APK).
+- **Setup:** open Settings, paste a Gemini key from Google AI Studio, and press **Validate & save**. Pick a model from the list the key can actually use.
+- **Use:** paste a YouTube or Bilibili link (or pick a local MP3/MP4 and friends), or share a link or file to SonicBrief from any app. Jobs run one at a time with notifications and can be cancelled; a job interrupted by process death is marked interrupted instead of hanging.
+- **Long recordings** are split into 20-minute ranges, transcribed in order, and merged back into one transcript.
+- **Cookies (optional):** if YouTube asks you to confirm you're not a bot, import a `cookies.txt` exported from a browser where you are signed in — only YouTube/Google/Bilibili rows are kept, and they never leave the phone except in requests to those sites.
+- **Privacy:** the API key is encrypted with the Android Keystore and only ever sent to Google; your media goes to Gemini with your own key for transcription and is then deleted from Google's Files API. History is searchable, renamable and deletable on the device.
+- **License:** `android/` is GPL-3.0-only (see `android/LICENSE`); third-party notices for the Android build are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#android-app-android-gpl-30-only).
+
 ## Speaker identification
 
 Speaker diarization is optional because its machine-learning packages are large. Install it after the base setup:

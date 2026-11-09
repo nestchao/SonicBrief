@@ -106,6 +106,48 @@ and remaining gates.
 Whisper model weights are downloaded on first use, rather than shipped
 inside the portable Windows runtime; model-specific terms still matter.
 
+## Android app (`android/`, GPL-3.0-only)
+
+The standalone Android app is free software under GPL-3.0-only (see
+`android/LICENSE`); the rest of this repository stays MIT. The app's media
+acquisition runs inside the youtubedl-android runtime, which bundles its own
+Python interpreter, yt-dlp executable, QuickJS and FFmpeg binaries. Their
+original copyright notices and license terms continue to apply, as do the
+licenses of the Android libraries listed here.
+
+- `io.github.junkfood02.youtubedl-android:library:0.18.1` — GNU General Public
+  License v3.0 (GPL-3.0). Project: `yausername/youtubedl-android`. Purpose: run
+  an updateable yt-dlp executable on Android, provide QuickJS support for
+  modern extractor challenges, expose progress/cancellation, allow stable
+  yt-dlp runtime updates independently of SonicBrief APK releases, and acquire
+  public-media metadata, audio-only streams, and selected manual subtitle
+  tracks. The runtime in turn includes or works with additional third-party
+  components such as yt-dlp, Python, and QuickJS; section above ("Android
+  public-media acquisition" in the V2 notices) describes the same arrangement.
+- yt-dlp (executed inside the youtubedl-android runtime on the phone) —
+  Unlicense (public domain); see https://github.com/yt-dlp/yt-dlp. The exact
+  runtime version is resolved at build time by the youtubedl-android package,
+  independently of the APK.
+- FFmpeg (executed inside the youtubedl-android runtime on the phone,
+  LGPL-licensed builds) — see https://ffmpeg.org/legal.html. The app requests
+  existing audio-only streams and remuxes to AAC (falling back to WAV) with the
+  device-side FFmpeg; it does not invoke an FFmpeg post-processor for video
+  downloads.
+- AndroidX libraries (Apache License 2.0): `androidx.compose:compose-bom`
+  (BOM 2026.06.00), `activity-compose:1.13.0`, `lifecycle` (runtime-ktx,
+  runtime-compose, viewmodel-compose: 2.10.0), `navigation-compose:2.9.8`,
+  `datastore-preferences:1.2.1`, `work-runtime-ktx:2.11.2`,
+  `room-runtime:2.8.5` + `room-ktx:2.8.5`, `hilt-android:2.60.1` (+
+  `hilt-compiler:2.60.1`, `androidx.hilt:hilt-compiler:1.4.0`).
+- `com.squareup.okhttp3:okhttp:4.12.0` — Apache License 2.0. Used for direct
+  Gemini API calls (resumable Files upload, generateContent, listModels).
+- `org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1` — Apache License 2.0.
+  Used for Gemini request/response parsing.
+
+When distributing SonicBrief Android APKs, preserve the notices shipped by
+these dependencies and make the corresponding `android/` source available
+under GPL-3.0-only.
+
 ## Release gates
 
 1. Capture inventory of everything actually bundled (FFmpeg, DLLs, Python
