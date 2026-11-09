@@ -3,7 +3,6 @@
  * navigable and downloadable with this file blocked.
  */
 
-import { DEMO } from "./demo-data.js";
 import { initI18n } from "./i18n.js";
 import { initGitHub } from "./github.js";
 
@@ -247,38 +246,70 @@ function initCopy() {
   }
 }
 
-/* ----------------------------------------------------------------- sample */
+/* ---------------------------------------------------------------- motion */
 
-function initSample() {
-  const root = $("[data-sample]");
-  if (!root) return;
+function initCounters() {
+  const counters = $$("[data-count]");
+  if (!counters.length) return;
 
-  const body = $("[data-sample-body]", root);
-  const buttons = $$("[data-sample-style] button", root);
-  let style = "standard";
-
-  const render = () => {
-    const lang = document.documentElement.dataset.lang === "zh" ? "zh" : "en";
-    const entry = DEMO[lang]?.[style];
-    if (!entry || !body) return;
-    body.innerHTML = entry.html;
-  };
-
-  for (const button of buttons) {
-    button.addEventListener("click", () => {
-      style = button.dataset.style;
-      for (const other of buttons) {
-        const active = other === button;
-        other.classList.toggle("is-active", active);
-        other.setAttribute("aria-pressed", String(active));
-      }
-      render();
-    });
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce || !("IntersectionObserver" in window)) {
+    for (const node of counters) node.textContent = node.dataset.count;
+    return;
   }
 
-  document.addEventListener("sb:lang", render);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const node = entry.target;
+        observer.unobserve(node);
 
-  if (document.documentElement.dataset.lang === "zh") render();
+        const target = Number(node.dataset.count) || 0;
+        const started = performance.now();
+        const duration = 850;
+
+        const step = (now) => {
+          const progress = Math.min(1, (now - started) / duration);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          node.textContent = String(Math.round(target * eased));
+          if (progress < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+    },
+    { threshold: 0.7 },
+  );
+
+  for (const node of counters) {
+    node.textContent = "0";
+    observer.observe(node);
+  }
+}
+
+/** Cards light up under the pointer: --mx/--my drive a radial highlight. */
+function initGlow() {
+  for (const card of $$("[data-glow]")) {
+    card.addEventListener("pointermove", (event) => {
+      const box = card.getBoundingClientRect();
+      card.style.setProperty("--mx", `${((event.clientX - box.left) / box.width) * 100}%`);
+      card.style.setProperty("--my", `${((event.clientY - box.top) / box.height) * 100}%`);
+    });
+  }
+}
+
+function initProgress() {
+  const bar = $("[data-progress] i");
+  if (!bar) return;
+
+  const update = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.transform = `scaleX(${max > 0 ? Math.min(1, window.scrollY / max) : 0})`;
+  };
+
+  update();
+  window.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
 }
 
 /* -------------------------------------------------------- platform CTA */
@@ -332,7 +363,9 @@ function boot() {
     initTabs(tablist.closest("[data-tabs]") || tablist.parentElement || document);
   }
 
-  initSample();
+  initCounters();
+  initGlow();
+  initProgress();
   initPrimaryCta(i18n);
   initGitHub();
 }

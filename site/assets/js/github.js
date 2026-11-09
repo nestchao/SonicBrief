@@ -54,6 +54,11 @@ function render({ stars, releases }) {
       node.textContent = label;
       node.hidden = false;
     }
+
+    // The count is the visible label, so it has to appear in the accessible name.
+    for (const link of document.querySelectorAll(".gh-link")) {
+      link.setAttribute("aria-label", `Star SonicBrief on GitHub — ${label} ${stars === 1 ? "star" : "stars"}`);
+    }
   }
 
   const android = latestChannel(releases, "android-v");
