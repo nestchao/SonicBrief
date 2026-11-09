@@ -34,3 +34,9 @@ legacy/
 /build/pyinstaller-desktop/
 /build/*.spec
 /build/release/
+
+# Android release signing material (never commit a keystore or its passwords)
+/android/keystore/
+/android/local.properties
+*.jks
+*.keystore

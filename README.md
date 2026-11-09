@@ -4,122 +4,157 @@
 
 <h1 align="center">SonicBrief</h1>
 
+<h3 align="center">🎙️ Turn any video or audio into a timestamped transcript and a clean summary.</h3>
+
+**Your media, your machine. Local Whisper keeps the audio on your PC — no upload, no per-minute bill.**
+
+Paste a YouTube, Bilibili, Vimeo, TikTok, X, SoundCloud or Twitch link — or drop in a local file — and SonicBrief returns a timestamped transcript you can search, plus an optional summary. Run it on Windows, on your phone, or from an AI agent over MCP.
+
 <p align="center">
-  Local-first media transcription workspace + MCP server powered by faster-whisper.
+  <strong>Local Whisper</strong> · <strong>Windows app</strong> · <strong>Android APK</strong> · <strong>Chrome extension</strong> · <strong>MCP server</strong>
 </p>
 
 <p align="center">
-  <strong>Local STT</strong> · <strong>NVIDIA GPU</strong> · <strong>Docker</strong> · <strong>MCP</strong> · <strong>Optional Gemini</strong>
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
+  <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white">
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-stdio-6A55FF">
+  <img alt="Release" src="https://img.shields.io/github/v/release/nestchao/SonicBrief?label=latest">
 </p>
 
 <p align="center">
-  <img src="public/sonicbrief-logo.png" alt="SonicBrief" width="104">
+  <strong><a href="#-download">⬇️ Download</a> · <a href="#-quick-start">🚀 Quick start</a> · <a href="#-android-app">📱 Android</a> · <a href="#-faq">❓ FAQ</a></strong>
 </p>
 
 <p align="center">
   <img src="docs/sonicbrief-hero.jpg" alt="SonicBrief local-first transcription workspace" width="100%">
 </p>
 
-SonicBrief turns public media links and local audio/video files into searchable, timestamped transcripts. It accepts YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch, and local files. Local `faster-whisper` transcription is the core service; Gemini fallback and built-in summaries are optional. Transcripts, optional summaries, and job history are stored in SQLite.
+* * *
 
-## Architecture
+## Why SonicBrief?
+
+Cloud transcription is convenient until you need an hour of video transcribed every day, or the audio is confidential, or the service changes its pricing.
+
+**SonicBrief runs `faster-whisper` on your own machine.** The audio never leaves the computer, there is no quota, and it keeps working offline once the model is downloaded.
+
+Cloud transcription service | SonicBrief
+---|---
+Per-minute billing | **Free, unlimited**
+Audio uploaded to a vendor | **Stays on your machine**
+Needs an account | **No account**
+Offline | **Yes, after the model downloads**
+GPU acceleration | **Yes — RTX via CUDA, CPU fallback**
+Works on Android | **Yes — standalone APK**
+Agent access | **Yes — local MCP server**
+Price | **$0**
+
+> Local-first by default: MCP transcription uses local Whisper and needs no Gemini key. Cloud fallback and built-in Gemini summaries are opt-in, with your own key.
+
+## ✨ Features
+
+- 🎬 **Almost any public link.** YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch and more, detected automatically — plus local audio and video files.
+- 🎯 **Timestamped local transcription.** `faster-whisper` with Turbo, Large v3, Distil-Large v3 or Small models; RTX GPU detected automatically with CPU fallback.
+- 🔍 **Searchable history.** SQLite-backed library with title/creator search, rename and delete.
+- 📝 **Summaries that read well.** Markdown summaries with real headings, lists, bold text and inline timestamp chips — not a wall of asterisks.
+- 🎨 **Six summary styles.** Brief, Standard, Detailed, Study Notes, Key Points, Meeting notes, plus per-summary custom instructions.
+- ⏱️ **Long recordings.** Ranges up to `MAX_MEDIA_HOURS` (12 by default); the Android app splits long audio into 20-minute chunks and merges them back.
+- 📤 **Portable exports.** TXT, SRT and JSON from the API; TXT, Markdown, SRT and WebVTT from the Android app.
+- 🧩 **One-click from the browser.** The Chrome extension sends the video you are watching straight to the app.
+- 📱 **Standalone Android app.** No account, no desktop pairing — transcribe and summarize on the phone with your own Gemini key.
+- 🤖 **MCP server for agents.** Submit media over stdio, page through transcripts, let the agent summarize with its own model.
+- 🗣️ **Optional speaker labels.** Diarization through `pyannote.audio` when you need "who said what".
+- 🚫 **No accounts, no telemetry, no ads.**
+
+## 🧭 How it works
 
 ```mermaid
 flowchart LR
-    A["Media URLs<br/>or local files"] --> B["SonicBrief FastAPI"]
+    A["🎬 Media URL<br/>or local file"] --> B["⚡ SonicBrief<br/>FastAPI"]
     B --> C["yt-dlp / FFmpeg"]
-    C --> D["faster-whisper"]
-    D --> E["Timestamped transcript"]
-    E --> F["SQLite history"]
-    F --> G["Web workspace"]
-    F --> H["MCP server"]
-    H --> I["AI agent"]
-    E -. optional .-> J["Gemini summary / fallback"]
+    C --> D["🗣️ faster-whisper<br/>CUDA or CPU"]
+    D --> E["⏱️ Timestamped<br/>transcript"]
+    E --> F["🗄️ SQLite<br/>history"]
+    F --> G["🖥️ Web workspace"]
+    F --> H["🤖 MCP server"]
+    F --> I["📱 Android app"]
+    E -. optional .-> J["✨ Gemini<br/>summary / fallback"]
 ```
 
-> **Local-first by default:** MCP transcription uses local Whisper and does not require a Gemini API key. Cloud fallback and built-in Gemini summaries are opt-in.
+The FastAPI service owns one job queue. The web workspace, the desktop app, the MCP server and the Android app are all clients of the same idea: submit media, get a transcript, keep the history.
 
-## What is included
+## 🚀 Quick start
 
-- Public media URLs from YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, and Twitch
-- Local `faster-whisper` transcription with timestamps
-- Whisper model choices: Turbo, Large v3, Distil-Large v3, and Small
-- Media duration limit defaults to 12 hours and can be changed with `MAX_MEDIA_HOURS` in `backend/.env`
-- RTX GPU detection with automatic CPU fallback
-- Optional Gemini transcription fallback when explicitly requested
-- Optional Gemini summaries; MCP agents can instead summarize the transcript with their own model
-- Optional speaker diarization through `pyannote.audio`
-- Local SQLite history with title/creator search and downloaded-media creator metadata
-- Dedicated Summary, Transcript, and Details workspace views
-- Full-transcript search and one-click copy
-- Markdown-formatted summaries with headings, bold text, lists, quotes, and timestamp chips
-- Summary presets: Brief, Standard, Detailed, Study Notes, Key Points, and Custom
-- Optional per-summary custom instructions, with Standard remembered as the default preset
-- TXT, SRT, and JSON export endpoints
-- Temporary media deletion after each task
-- Local stdio MCP server for AI agents, backed by the same FastAPI job queue and SQLite history
+Pick the shape that fits you.
 
-## Windows setup
+I want to… | Use this | Needs
+---|---|---
+Transcribe on my phone | [Android APK](#-android-app) | An Android phone + Gemini key
+Install on Windows without Python | [Windows installer](#-windows-desktop-app) | Windows 10/11
+Hack on the code | [Local web workspace](#-local-web-workspace-from-source) | Python 3.11, Node 22, FFmpeg
+Let an AI agent transcribe | [MCP server](#-mcp-server-for-ai-agents) | Docker (recommended) or Python
+Send videos from Chrome | [Chrome extension](#-chrome-extension) | The desktop or local app running
 
-Requirements:
+## ⬇️ Download
 
-- Windows 10 or 11
-- Python 3.11
-- Node.js 22 or newer
-- FFmpeg and FFprobe available in `PATH`
+Platform | File | Requirements
+---|---|---
+**Android** | `SonicBrief-android-universal.apk` (or the `arm64-v8a` split) | Android 8.0+, your own Gemini key
+**Windows** installer, NVIDIA | `SonicBrief-Setup-gpu.exe` + optional `SonicBrief-CudaPack.zip` | Windows 10/11 64-bit
+**Windows** installer, any PC | `SonicBrief-Setup-cpu.exe` | Windows 10/11 64-bit
+**Chrome extension** | `extension/` folder (Load unpacked) | Chrome / Edge
 
-Run `setup.bat` once. It creates a Python virtual environment, installs the base transcription dependencies, installs the frontend dependencies, and creates `backend/.env`.
+Grab the files from [**Releases**](https://github.com/nestchao/SonicBrief/releases). Each release publishes SHA-256 checksums (`SHA256SUMS.txt`) next to the binaries.
 
-For URL jobs, SonicBrief detects the supported site automatically and downloads public media through `yt-dlp`. Site availability can change when providers update playback or anti-bot rules; private/login-only media is not guaranteed to work.
+The Windows installers are not code-signed, so SmartScreen may warn the first time — choose **More info → Run anyway**. Verify the SHA-256 hash if you want certainty.
 
-Double-click `start.bat`. On first launch, open **Gemini Settings** and paste your own Google AI Studio API key. SonicBrief asks Google's Gemini Models API for the models available to that key, keeps Gemini models that support `generateContent`, filters out specialized transcription, TTS, image, Live/audio, embedding, Omni, custom-tools, robotics, computer-use, and research variants, and fills the model dropdown dynamically. This avoids shipping a short hardcoded model list that can become stale.
+## 📱 Android app
 
-The API key and selected model are saved to the local `backend/.env` file on that computer; you do not need to edit the file manually. If you paste a different key, use **Refresh models** before testing or saving so the dropdown reflects that key's access. The dropdown puts the `-latest` aliases first (Flash-Lite Latest, Flash Latest, Pro Latest), then sorts numbered releases from newest to oldest, with stable models ahead of preview/experimental variants for the same version.
+A standalone APK in `android/` (`applicationId dev.sonicbrief.mobile`). No Supabase, no desktop pairing, no accounts — it transcribes and summarizes on the phone using your own Gemini key.
 
-You can also configure the shared model in `backend/.env` if needed:
+<table>
+  <tr>
+    <td align="center"><img src="docs/android/home.png" width="240" alt="SonicBrief Android home screen"></td>
+    <td align="center"><img src="docs/android/progress.png" width="240" alt="Five-step live progress timeline"></td>
+    <td align="center"><img src="docs/android/summary.png" width="240" alt="Formatted Markdown summary"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Capture a link or a file</sub></td>
+    <td align="center"><sub>Live five-step progress</sub></td>
+    <td align="center"><sub>Summaries rendered as Markdown</sub></td>
+  </tr>
+</table>
 
-```env
-GEMINI_MODEL=gemini-flash-lite-latest
-```
+- **Install:** download the universal APK, or the split matching your phone (most modern phones are `arm64-v8a`). Debug builds are `*-debug.apk`; release builds are signed.
+- **Setup:** open **Settings → API key**, paste a key from Google AI Studio, and press **Validate & save**. The app lists the models that key can actually use.
+- **Use:** paste a YouTube or Bilibili link, pick a local MP3/MP4, or **share a link or file to SonicBrief from any app** — the link lands on Home ready to run.
+- **Progress you can read:** every job walks five named steps (check link → download → upload → transcribe → summarize) with a live elapsed clock, shown in the app, on the job card, and in the notification — which also has a **Cancel** action.
+- **Long recordings** are split into 20-minute ranges, transcribed in order, and merged back into one transcript.
+- **Cookies (optional):** if YouTube asks you to prove you're not a bot, import a `cookies.txt` from a signed-in browser. Only YouTube/Google/Bilibili rows are kept, and they never leave the phone.
+- **Self-healing downloader:** the bundled `yt-dlp` refreshes itself when a site changes, then retries the job automatically.
+- **Privacy:** the API key is encrypted with the Android Keystore and only ever sent to Google; media goes to Gemini with your key and is then deleted from Google's Files API.
+- **License:** `android/` is **GPL-3.0-only** (see [`android/LICENSE`](android/LICENSE)); notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#android-app-android-gpl-30-only).
 
-Legacy `GEMINI_TRANSCRIPTION_MODEL` and `GEMINI_SUMMARY_MODEL` overrides remain supported for existing installs. The app still performs local transcription without Gemini, but summary generation and cloud fallback require the key.
-
-Then double-click `start.bat`. It starts the API at `http://127.0.0.1:7860`, starts the web interface at `http://127.0.0.1:3000`, and opens the interface in your browser.
-
-## Desktop app (system tray)
-
-For everyday use, launch **SonicBrief** from the Desktop or Start Menu shortcut that `setup.bat` creates (or double-click `SonicBrief.vbs`). It:
-
-- starts the API and web interface in the background, with no terminal windows, and opens SonicBrief in a tab of your normal browser once it is ready (the first start can take a few minutes);
-- keeps running in the background when you close the tab, so jobs keep going; launch the **SonicBrief** shortcut again to reopen the tab;
-- reuses an API or interface that is already running instead of starting a second copy, and only one desktop app runs at a time;
-- adds a system tray icon (when Windows allows it) with **Open SonicBrief**, **Transcribe link from clipboard**, **Start with Windows**, folder shortcuts, and **Quit**, and shows a Windows notification when a transcript is ready or a job fails.
-
-> **The native installer app (next section) is the supported way to run SonicBrief now.** It starts in seconds and its tray icon is reliable. This Python launcher stays in the repository as the development path — it runs the backend and Vite straight from the checkout, so code changes take effect without packaging anything. If both are installed, the Desktop/Start Menu **SonicBrief** shortcut opens the native app; start the dev launcher with `SonicBrief.vbs` when you are working on the code.
-
-**To stop SonicBrief**, use the **Stop SonicBrief** shortcut (or double-click `Stop SonicBrief.bat`). It does not need the tray icon, which some PCs hide or block. It asks the running app to quit, which also stops the API and interface, and it asks first if a transcription is still running.
-
-Logs are written to `data\logs\`. The desktop app also registers a per-user `sonicbrief-desktop://` link so the Chrome extension can start it. To add the shortcuts or packages to an existing install without rerunning setup:
+Build it yourself:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r desktop\requirements.txt
-powershell -NoProfile -ExecutionPolicy Bypass -File .\desktop\install_shortcuts.ps1
+cd android
+./gradlew assembleDebug            # debug APK
+powershell -File ../scripts/build_android.ps1   # tests, then signed release if ANDROID_KEYSTORE_* is set
 ```
 
-## Windows installer app (native)
+## 💻 Windows desktop app
 
-A native Windows app that needs no Python, Node, or `setup.bat`: install it, open **SonicBrief** from the Start Menu, and transcribe. It is a small [Tauri](https://tauri.app/) shell (WebView2 window + tray) around a bundled server (`SonicBrief-Server.exe`: the FastAPI backend, faster-whisper, yt-dlp, FFmpeg, and the web UI). It starts in seconds, keeps running in the tray when you close the window, and stops the server when you quit. It installs per user (no administrator rights) and shares its data with the portable MCP build in `%LOCALAPPDATA%\SonicBrief` (history in `data\`, Gemini settings in `settings.env`, models in `models\`, logs in `logs\`).
+A native Windows app that needs **no Python, Node or `setup.bat`**. It is a small [Tauri](https://tauri.app/) shell (WebView2 window + tray icon) around a bundled server (`SonicBrief-Server.exe`: FastAPI, faster-whisper, yt-dlp, FFmpeg and the web UI). It starts in seconds, keeps running in the tray when you close the window, and stops the server when you quit. It installs per user (no admin rights) and shares data with the portable MCP build in `%LOCALAPPDATA%\SonicBrief` — history in `data\`, Gemini settings in `settings.env`, models in `models\`, logs in `logs\`.
 
-Two installers are built by the **Windows Desktop App** GitHub workflow (run it manually or push a `desktop-v<version>` tag):
+Two installers are built by the **Windows Desktop App** workflow (run it manually or push a `desktop-v<version>` tag):
 
 | Installer | For | Notes |
 | --- | --- | --- |
-| `SonicBrief-Setup-gpu.exe` | NVIDIA GPUs | Same installer size as the CPU one. Add the **CUDA pack** (below) to transcribe on the GPU; without it this build runs on the CPU. |
+| `SonicBrief-Setup-gpu.exe` | NVIDIA GPUs | Add the **CUDA pack** (below) to transcribe on the GPU; without it this build runs on the CPU. |
 | `SonicBrief-Setup-cpu.exe` | Any PC | Smaller; transcription is several times slower. |
 
 **CUDA pack (GPU builds).** The CUDA runtime is about 1.7 GB and the installer format (NSIS) cannot build installers above 2 GiB, so the GPU build keeps those DLLs out and the workflow publishes them separately as `SonicBrief-CudaPack.zip`. If the machine already has a CUDA 12 runtime (a recent NVIDIA driver usually provides one), the pack is unnecessary. Otherwise: quit SonicBrief, unzip the archive so that a `cuda` folder appears at `%LOCALAPPDATA%\SonicBrief\cuda`, then start the app again — the status pill reports GPU mode once the DLLs are found. The server also looks for a `cuda` folder next to the executable. The DLLs are NVIDIA redistributables under the NVIDIA CUDA Toolkit EULA.
-
-The installers are not code-signed, so Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info → Run anyway**.
 
 Build it yourself on Windows (Rust, Node 22, Python 3.11 with the backend requirements, and FFmpeg on `PATH` are needed):
 
@@ -127,19 +162,29 @@ Build it yourself on Windows (Rust, Node 22, Python 3.11 with the backend requir
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_desktop_app.ps1
 ```
 
-That produces `desktop-app\src-tauri\target\release\bundle\nsis\SonicBrief_*_x64-setup.exe`. A local build uses whatever FFmpeg is on `PATH` and skips the licence checks, so it is for testing only; releases use the audited LGPL FFmpeg from the workflow. The Chrome extension below works with this app unchanged.
+That produces `desktop-app\src-tauri\target\release\bundle\nsis\SonicBrief_*_x64-setup.exe`. A local build uses whatever FFmpeg is on `PATH` and skips the licence checks, so it is for testing only; releases use the audited LGPL FFmpeg from the workflow.
 
-## Chrome extension
+## 🖥️ Local web workspace (from source)
+
+Requirements: Windows 10 or 11, Python 3.11, Node.js 22+, FFmpeg and FFprobe on `PATH`.
+
+Run `setup.bat` once. It creates a Python virtual environment, installs the transcription dependencies and the frontend dependencies, and creates `backend/.env`. Then double-click `start.bat`: it starts the API at `http://127.0.0.1:7860`, the interface at `http://127.0.0.1:3000`, and opens your browser.
+
+On first launch open **Gemini Settings** and paste your own Google AI Studio key. SonicBrief asks Google's Models API which models that key can use, keeps the generation-capable ones, and fills the dropdown dynamically — so the list never goes stale. The key and model are saved to the local `backend/.env`; you never edit it by hand. Prefer a fixed model? Set `GEMINI_MODEL=gemini-flash-lite-latest` in `backend/.env`.
+
+There is also a Python **tray launcher** for development (`SonicBrief.vbs`): it starts the API and interface with no terminal windows, keeps running when you close the tab, adds a tray icon with **Transcribe link from clipboard** and **Start with Windows**, and shows a notification when a transcript is ready. Stop it with the **Stop SonicBrief** shortcut. Logs go to `data\logs\`. The native installer above is the supported way to run it day to day; this launcher stays in the repo so code changes take effect without packaging.
+
+## 🧩 Chrome extension
 
 The `extension/` folder is a Chrome (Manifest V3) extension that sends the video you are watching to your local SonicBrief app.
 
-Install it: open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and choose the `extension` folder. Pin it from the puzzle-piece menu. After editing the extension, press **Reload** on its card.
+Install it: open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and choose the `extension` folder. Pin it from the puzzle-piece menu.
 
 - Open the popup on a video page and it shows what it found — e.g. **YouTube** plus the video title — with one button: **Transcribe + summarize**. The link is normalized first, so `youtu.be/ID`, a Short, a live replay, an embed and a `watch?v=` page all resolve to the same video.
-- Supported: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch, Douyin, Instagram (Reels and posts) and Facebook videos. A supported *host* is not enough: a channel page, the YouTube feed, the Instagram feed or the Facebook home page shows a "not a video" hint with a paste box instead of a live button.
-- **Model** is visible in the popup (Whisper Turbo, Large v3, Distil Large v3, Small). **Options** holds the transcript language, the **summary language** (default Simplified Chinese) and the summary style. Every choice is remembered between popups.
+- Supported: YouTube, Bilibili, Vimeo, TikTok, X/Twitter, SoundCloud, Twitch, Douyin, Instagram (Reels and posts) and Facebook videos. A supported *host* is not enough: a channel page, the YouTube feed or the Instagram feed shows a "not a video" hint with a paste box instead of a live button.
+- **Model** is visible in the popup. **Options** holds the transcript language, the **summary language** (default Simplified Chinese) and the summary style — remembered between popups.
 - Right-click a video page or a video link and choose **Transcribe with SonicBrief**, or press **Alt+Shift+S**.
-- If SonicBrief isn't running, the extension starts the desktop app through `sonicbrief-desktop://` (Chrome asks once to allow it) and sends the link when the app is ready.
+- If SonicBrief isn't running, the extension starts the desktop app through `sonicbrief-desktop://` and sends the link when the app is ready.
 - You get a Chrome notification when the transcript is ready; click it to open SonicBrief.
 
 Instagram, Facebook and Douyin often require a signed-in session. If such a job fails with a login or "no video" message, restart the app with cookies from a browser you are signed in to (off by default):
@@ -150,51 +195,9 @@ $env:SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER = "chrome"   # or edge, firefox
 
 The extension only talks to `http://127.0.0.1:7860` and `http://127.0.0.1:3000` on your own computer.
 
-## Android app (standalone)
+## 🤖 MCP server for AI agents
 
-A standalone Android APK in `android/` (`applicationId dev.sonicbrief.mobile`) — no Supabase, no Windows pairing, no accounts. It transcribes and summarizes on the phone with your own Gemini key.
-
-- **Install:** grab the signed APK from the `android-v*` GitHub release (universal APK, or the one matching your ABI). Or build it yourself: `cd android && ./gradlew assembleDebug` (debug) or `scripts/build_android.ps1` (runs tests, then a signed release when the `ANDROID_KEYSTORE_*` env vars are set, otherwise debug; `-Install` runs `adb install -r` on the universal APK).
-- **Setup:** open Settings, paste a Gemini key from Google AI Studio, and press **Validate & save**. Pick a model from the list the key can actually use.
-- **Use:** paste a YouTube or Bilibili link (or pick a local MP3/MP4 and friends), or share a link or file to SonicBrief from any app. Jobs run one at a time with notifications and can be cancelled; a job interrupted by process death is marked interrupted instead of hanging.
-- **Long recordings** are split into 20-minute ranges, transcribed in order, and merged back into one transcript.
-- **Cookies (optional):** if YouTube asks you to confirm you're not a bot, import a `cookies.txt` exported from a browser where you are signed in — only YouTube/Google/Bilibili rows are kept, and they never leave the phone except in requests to those sites.
-- **Privacy:** the API key is encrypted with the Android Keystore and only ever sent to Google; your media goes to Gemini with your own key for transcription and is then deleted from Google's Files API. History is searchable, renamable and deletable on the device.
-- **License:** `android/` is GPL-3.0-only (see `android/LICENSE`); third-party notices for the Android build are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#android-app-android-gpl-30-only).
-
-## Speaker identification
-
-Speaker diarization is optional because its machine-learning packages are large. Install it after the base setup:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements-diarization.txt
-```
-
-Create a Hugging Face access token, accept the access terms for the configured pyannote model, and add the token to `backend/.env`:
-
-```env
-HF_TOKEN=your_hugging_face_token
-DIARIZATION_MODEL=pyannote/speaker-diarization-3.1
-```
-
-Speaker diarization identifies anonymous voices such as `Speaker 1` and `Speaker 2`; it does not determine a person's real name.
-
-## NVIDIA GPU notes
-
-The API health check reports whether CTranslate2 can access CUDA. If it reports CPU mode even though NVIDIA CUDA is installed, the CTranslate2 wheel may expect a different CUDA runtime library version. Check the CTranslate2 compatibility notes for the installed version, or use CPU mode until the matching runtime libraries are installed. SonicBrief uses `float16` on CUDA and `int8` on CPU.
-
-## Local data and privacy
-
-- The API binds to `127.0.0.1`, so it is not exposed to other computers.
-- Each user supplies their own Gemini API key; it is saved locally in `backend/.env` and is never returned to the frontend.
-- `backend/.env` is local configuration and must never be committed to Git.
-- Temporary downloaded or uploaded audio is deleted after processing.
-- Persistent results are stored in `data/sonicbrief.sqlite3`.
-- If Gemini fallback or summaries are enabled, the relevant audio or transcript is sent to Google's API.
-
-## MCP server for AI agents
-
-SonicBrief's MCP mode is **STT-first**. The default agent workflow is:
+SonicBrief's MCP mode is **STT-first**: the agent gets a transcript and summarizes it with its own model.
 
 ```text
 AI agent
@@ -205,244 +208,182 @@ AI agent
   -> agent summarizes with its own model
 ```
 
-MCP URL/file submissions default to **local Whisper only**: `allow_gemini_fallback=false` and `generate_gemini_summary=false`. This means a normal MCP transcription does not need a Gemini key. The agent can page through `get_transcript` and summarize the transcript itself.
+MCP submissions default to **local Whisper only** (`allow_gemini_fallback=false`, `generate_gemini_summary=false`), so no Gemini key is needed. Whisper does **not** run inside the MCP process: the bridge starts or reuses one local FastAPI backend that owns the queue, Whisper work, yt-dlp/FFmpeg and SQLite history, and shuts down the backend it owns when the session ends.
 
-If the user wants SonicBrief's built-in Gemini summary, configure a Gemini API key and explicitly call `generate_summary_with_gemini`, or submit a job with `generate_gemini_summary=true`. Cloud transcription fallback is also opt-in.
-
-Whisper does **not** run inside the MCP process. The MCP bridge starts/reuses one local FastAPI backend, and that backend owns the processing queue, Whisper CPU/GPU work, yt-dlp/FFmpeg, and SQLite history. If the GUI/backend is already running, MCP reuses it. If it is not running, MCP starts it automatically and shuts down the backend process it owns when the MCP session ends.
-
-### Recommended MCP installation: Docker
-
-For headless agent use, Docker avoids installing Python, FFmpeg, yt-dlp, or the Python packages manually.
-
-Build once:
+### Recommended: Docker
 
 ```powershell
 docker build -t sonicbrief-mcp:local .
-```
-
-Verify the image and automatic backend startup:
-
-```powershell
 docker run --rm -v sonicbrief-data:/data sonicbrief-mcp:local --self-test
 ```
 
-A healthy result reports `"ok": true`, `"ffmpeg_available": true`, and `"audio_decode_available": true`. This self-test starts the backend automatically, checks it, performs a tiny local faster-whisper/PyAV audio decode to catch dependency incompatibilities, then exits.
-
-Then configure the MCP host to launch Docker:
+A healthy result reports `"ok": true`, `"ffmpeg_available": true` and `"audio_decode_available": true`. Then point the MCP host at Docker:
 
 ```text
 command: docker
-args:
-  run
-  --rm
-  -i
-  -v
-  sonicbrief-data:/data
-  sonicbrief-mcp:local
+args: run --rm -i -v sonicbrief-data:/data sonicbrief-mcp:local
 ```
 
-The `sonicbrief-data` volume persists:
-- SQLite job/transcript history
-- downloaded Whisper/Hugging Face model cache
-- application cache
+The `sonicbrief-data` volume persists the SQLite history, the Whisper/Hugging Face model cache and the application cache. To transcribe a local file, mount it read-only (`-v C:\Users\you\Videos:/media:ro`) and pass a container path such as `/media/lecture.mp4`.
 
-The FastAPI backend stays inside the same container and is not published to the host network. Therefore an MCP health response may show `backend_url: http://127.0.0.1:7860` even though Windows has a different process on host port 7860: inside Docker, that loopback address belongs to the MCP container. `get_health` reports `backend_runtime`, `backend_scope`, `backend_pid`, `backend_instance_id`, `data_dir`, and `database_path` so agents can distinguish the container backend from a native host backend. The first transcription for a Whisper model may take longer while its model files are downloaded; later container runs reuse the model from the Docker volume.
-
-The included `compose.yaml` provides the same persistent setup for users who prefer Compose:
+The included `compose.yaml` does the same:
 
 ```powershell
 docker compose build
 docker compose run --rm -T sonicbrief-mcp --self-test
 ```
 
-No Gemini key is required when the connected AI agent will summarize the transcript. To enable SonicBrief's optional Gemini features in Docker, pass `GEMINI_API_KEY` into the container through your MCP host/environment instead of baking it into the image.
-
-For local files, the container must be able to see the file. Mount a read-only media folder, for example:
-
-```text
--v C:\Users\you\Videos:/media:ro
-```
-
-and give `submit_local_file` a container path such as `/media/lecture.mp4`.
-
-### NVIDIA GPU Docker image
-
-The default `Dockerfile` remains the portable CPU image. NVIDIA users can build the dedicated CUDA image:
+### NVIDIA GPU image
 
 ```powershell
 docker build -f Dockerfile.gpu -t sonicbrief-mcp:gpu .
+docker run --rm --gpus all -v sonicbrief-data:/data sonicbrief-mcp:gpu --self-test
 ```
 
-The GPU image is based on NVIDIA CUDA 12.8 with cuDNN and runs the same SonicBrief MCP/backend code. Verify GPU passthrough and CTranslate2 detection:
-
-```powershell
-docker run --rm --gpus all `
-  -v sonicbrief-data:/data `
-  sonicbrief-mcp:gpu --self-test
-```
-
-A successful GPU setup should report:
-
-```json
-{
-  "ok": true,
-  "backend_started_by_mcp": true,
-  "backend_runtime": "docker",
-  "data_dir": "/data",
-  "database_path": "/data/sonicbrief.sqlite3",
-  "ffmpeg_available": true,
-  "audio_decode_available": true,
-  "cuda_available": true,
-  "device": "NVIDIA GPU"
-}
-```
-
-Then configure an MCP host to launch the GPU image:
-
-```text
-command: docker
-args:
-  run
-  --rm
-  -i
-  --gpus
-  all
-  -v
-  sonicbrief-data:/data
-  sonicbrief-mcp:gpu
-```
-
-The CPU and GPU images share the same `sonicbrief-data` volume, so job history and downloaded model files persist when switching between them.
-
-Compose users can use the GPU profile:
+The GPU image uses NVIDIA CUDA 12.8 with cuDNN and runs the same code. The CPU and GPU images share the `sonicbrief-data` volume, so history and models carry over. Compose users can use the GPU profile:
 
 ```powershell
 docker compose --profile gpu build sonicbrief-mcp-gpu
 docker compose --profile gpu run --rm -T sonicbrief-mcp-gpu --self-test
 ```
 
-If `nvidia-smi` works inside an NVIDIA CUDA container but SonicBrief still reports `cuda_available: false`, the remaining issue is inside the CUDA/cuDNN/CTranslate2 runtime rather than Docker GPU passthrough.
+### Native install
 
-### Experimental portable Windows MCP (release packaging)
-
-A **Windows x64 CPU-only** distribution is being prepared for users who do
-not want Docker, Python, or FFmpeg installed on their PCs. The package will be
-delivered through an npm launcher, similar to Chrome DevTools MCP. **Node.js
-20.19+ and npm are still required.** Model weights download on first use.
-
-Once an official `mcp-v0.1.0` GitHub Release and the corresponding
-`@nestchao/sonicbrief-mcp` npm package have been published, a supported
-MCP host can run:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "sonicbrief": {
-        "type": "local",
-        "command": ["npx", "-y", "@nestchao/sonicbrief-mcp@latest"]
-      }
-    }
-  }
-}
-```
-
-This **is not available from npm yet**. GitHub's portable build workflow
-(`.github/workflows/portable-mcp.yml`) creates the Windows ZIP,
-SHA-256 checksums, and an npm tarball with the verified ZIP digest. The tagged workflow creates a **draft GitHub Release** for review; publishing
-it and releasing the matching npm tarball are separate manual steps after testing. Do not publish
-the checked-in npm folder as-is; its digest is intentionally empty.
-
-On first launch, the npm package fetches the checksum-pinned GitHub Release
-under `%LOCALAPPDATA%\SonicBrief\runtime\`. Job history and model caches
-are preserved separately in `%LOCALAPPDATA%\SonicBrief\data` and
-`%LOCALAPPDATA%\SonicBrief\models`. It launches the local MCP over
-stdio and automatically starts/stops FastAPI. The portable CPU package does
-not require Docker Desktop, and its local SQLite database is separate from
-existing Docker volume data. Optional Gemini features still require users'
-own credentials. Compatible NVIDIA GPU runtime packaging is planned after
-the Windows CPU workflow is validated.
-
-### Native MCP installation
-
-Docker is optional. If SonicBrief is already installed natively, configure the MCP host with:
+If SonicBrief is already installed natively, point the MCP host at the virtualenv:
 
 ```text
 command: C:\path\to\SonicBrief\.venv\Scripts\python.exe
 args:    C:\path\to\SonicBrief\sonicbrief_mcp.py
 ```
 
-You do **not** need to run `start.bat` first. The MCP process checks `127.0.0.1:7860` and starts `backend/app.py` automatically when needed. Set `SONICBRIEF_AUTO_START_BACKEND=0` only if you intentionally want to manage the backend yourself.
+You do **not** need to run `start.bat` first — the MCP process checks `127.0.0.1:7860` and starts the backend when needed. Set `SONICBRIEF_AUTO_START_BACKEND=0` only if you manage the backend yourself.
 
-Available MCP tools include:
-- `get_health`
-- `submit_media_url` and `submit_media_urls`
-- `submit_local_file`
-- `get_job`, `list_jobs`, and `search_jobs`
-- `get_transcript` with offset/limit pagination
-- `export_transcript` for exact `txt`, `srt`, or `json` backend exports
-- `get_summary` for an already stored built-in summary
-- `generate_summary_with_gemini` for explicit Gemini summarization
-- `cancel_job`
-- `delete_job`
+Available tools: `get_health`, `submit_media_url(s)`, `submit_local_file`, `get_job`, `list_jobs`, `search_jobs`, `get_transcript` (paginated), `export_transcript` (`txt`/`srt`/`json`), `get_summary`, `generate_summary_with_gemini`, `cancel_job`, `delete_job`.
 
-Long-running transcription remains job-based: submit first, check `get_job`, then retrieve transcript pages when the job completes. The MCP call does not remain open for the entire video.
+> A portable Windows MCP build is in preparation; until the `mcp-v0.1.0` release and the matching npm package exist, use Docker or the native install above.
 
-### Privacy model
+## 🗣️ Speaker identification
 
-Local Whisper keeps STT audio processing on the computer/container. If the connected AI agent summarizes the transcript using a cloud model, the transcript may be sent to that model provider. If Gemini fallback or `generate_summary_with_gemini` is explicitly used, the relevant audio/transcript is sent to Google's API.
-
-## License
-
-SonicBrief's project-owned code is licensed under the [MIT License](LICENSE).
-Third-party dependencies and bundled binaries, including FFmpeg, retain their
-own licenses and distribution requirements. See [third-party notices](THIRD_PARTY_NOTICES.md)
-and complete the distribution/source obligations before public publication.
-
-## Development commands
-
-Frontend:
+Diarization is optional because its models are large. Install it after the base setup:
 
 ```powershell
-npm run dev -- --host 127.0.0.1 --port 3000 --strictPort
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-diarization.txt
 ```
 
-Backend:
+Create a Hugging Face token, accept the model's access terms, and add it to `backend/.env`:
+
+```env
+HF_TOKEN=your_hugging_face_token
+DIARIZATION_MODEL=pyannote/speaker-diarization-3.1
+```
+
+Diarization labels anonymous voices such as `Speaker 1` and `Speaker 2`; it does not determine a real name.
+
+## ⚡ NVIDIA GPU notes
+
+The health check reports whether CTranslate2 can reach CUDA. If it reports CPU mode even though CUDA is installed, the CTranslate2 wheel probably expects a different CUDA runtime version — check its compatibility notes, or stay on CPU until the matching libraries are installed. SonicBrief uses `float16` on CUDA and `int8` on CPU.
+
+## 🔒 Privacy and local data
+
+- The API binds to `127.0.0.1`, so it is not exposed to other computers.
+- Each user supplies their own Gemini key; it is stored locally and never returned to the frontend. On Android it is encrypted with the Keystore.
+- `backend/.env` is local configuration and must never be committed.
+- Temporary downloaded or uploaded audio is deleted after processing.
+- Persistent results live in `data/sonicbrief.sqlite3`.
+- Local Whisper keeps audio on the machine. If you enable Gemini fallback or summaries, or an agent summarizes with a cloud model, the relevant audio or transcript leaves the machine for that step.
+
+## ❓ FAQ
+
+**Do I need a GPU?**
+
+No. CPU works out of the box, just slower. An RTX card with the CUDA pack is several times faster.
+
+**Do I need a Gemini key?**
+
+Only for cloud fallback, built-in summaries, and the Android app. Local transcription never needs one, including over MCP.
+
+**How long can a recording be?**
+
+Up to `MAX_MEDIA_HOURS` (12 by default). The Android app splits long audio into 20-minute ranges and merges them back.
+
+**Why did a YouTube job fail with a "yt-dlp is older than 90 days" warning?**
+
+YouTube changed something the bundled downloader did not understand. SonicBrief now refreshes its downloader and retries automatically; if it still fails, it tells you to check the connection or import cookies.
+
+**The app can't download a video that plays fine in my browser.**
+
+Instagram, Facebook, Douyin and some YouTube videos need a signed-in session. Import cookies (Android) or restart with `SONICBRIEF_YTDLP_COOKIES_FROM_BROWSER` (Windows). Private, DRM-protected or paid content is out of scope.
+
+**Where are my transcripts stored?**
+
+In SQLite: `data/sonicbrief.sqlite3` on Windows, and the app's private storage on Android. Nothing is uploaded to us — there is no us.
+
+**Can my AI agent use it?**
+
+Yes, over stdio MCP. The agent gets a transcript and summarizes with its own model, so no Gemini key is involved.
+
+## 🛠️ Build from source
+
+**Android**
+
+```bash
+git clone https://github.com/nestchao/SonicBrief.git
+cd SonicBrief/android
+./gradlew assembleDebug                 # debug APKs
+./gradlew assembleRelease               # signed release (needs ANDROID_KEYSTORE_* env vars)
+./gradlew :app:testDebugUnitTest        # unit tests
+```
+
+**Windows desktop app** (Rust, Node 22, Python 3.11, FFmpeg on `PATH`)
 
 ```powershell
-Set-Location backend
-..\.venv\Scripts\python.exe app.py
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_desktop_app.ps1
 ```
 
-Production frontend build:
+**Web workspace**
 
 ```powershell
-npm run build
+npm install
+npm run dev -- --host 127.0.0.1 --port 3000 --strictPort   # frontend
+Set-Location backend; ..\.venv\Scripts\python.exe app.py    # backend
+npm run build                                              # production bundle
 ```
 
-## Main API routes
+## 🧱 Technical details
 
-- `GET /api/health`
-- `GET /api/settings/gemini`
-- `POST /api/settings/gemini` (save a local Gemini key and model)
-- `POST /api/settings/gemini/models` (load text-focused generation models available to a key)
-- `POST /api/settings/gemini/test` (test a key/model without saving it)
-- `DELETE /api/settings/gemini` (remove the saved key)
-- `GET /api/jobs`
-- `GET /api/jobs/{id}`
-- `POST /api/jobs/upload`
-- `POST /api/jobs/url`
-- `POST /api/jobs/{id}/summaries`
-- `GET /api/jobs/{id}/export/txt`
-- `GET /api/jobs/{id}/export/srt`
-- `GET /api/jobs/{id}/export/json`
-- `DELETE /api/jobs/{id}`
+Area | Implementation
+---|---
+Transcription | `faster-whisper` (CTranslate2); Turbo, Large v3, Distil-Large v3, Small
+Acceleration | CUDA `float16` when available, `int8` on CPU, automatic fallback
+Media acquisition | `yt-dlp` + FFmpeg; audio-only stream selection and remux
+API | FastAPI on `127.0.0.1:7860`, single job queue
+Frontend | Vite + TypeScript workspace on `127.0.0.1:3000`
+Storage | SQLite (`data/sonicbrief.sqlite3`)
+Desktop shell | Tauri + WebView2, tray icon, per-user install
+Android | Kotlin, Jetpack Compose Material 3, Hilt, Room, WorkManager; Gemini REST with resumable Files API
+Android UI | Custom design system (Manrope type, five-step progress timeline, Markdown summaries)
+Agent access | Local stdio MCP bridge that auto-starts/reuses the FastAPI backend
+Diarization | Optional `pyannote.audio`
 
-## License
+### Main API routes
 
-SonicBrief's original source code is released under the [MIT License](LICENSE)
-(Copyright (c) 2026 nestchao). Third-party dependencies, model weights, and
-bundled tools such as FFmpeg retain their respective licenses. The portable
-Windows release must include applicable third-party license notices and meet
-redistribution requirements before general publication.
+`GET /api/health` · `GET|POST|DELETE /api/settings/gemini` · `POST /api/settings/gemini/models` · `POST /api/settings/gemini/test` · `GET /api/jobs` · `GET /api/jobs/{id}` · `POST /api/jobs/upload` · `POST /api/jobs/url` · `POST /api/jobs/{id}/summaries` · `GET /api/jobs/{id}/export/{txt|srt|json}` · `DELETE /api/jobs/{id}`
+
+## 🤝 Contributing
+
+Bug reports, ideas and pull requests are welcome. When reporting a problem include your OS, phone model if relevant, and the app's log (`data\logs\` on Windows, logcat on Android).
+
+- 🐛 [Report a bug](https://github.com/nestchao/SonicBrief/issues)
+- 💬 [Browse issues](https://github.com/nestchao/SonicBrief/issues)
+
+If SonicBrief saved you an hour, a ⭐ helps other people find it.
+
+## ⚖️ Disclaimer
+
+SonicBrief is for media you are allowed to process — your own recordings, or public content whose terms permit it. Respect copyright and each platform's terms of service. Site availability can change when providers update playback or anti-bot rules; private, login-only or DRM-protected media is not guaranteed to work.
+
+## 📄 License
+
+SonicBrief's own source code is **[MIT](LICENSE)** © 2026 nestchao. The `android/` directory is **GPL-3.0-only** (see [`android/LICENSE`](android/LICENSE)) because it links a GPL-3.0 acquisition runtime.
+
+Third-party dependencies and bundled binaries — including FFmpeg, yt-dlp, Whisper model weights, the youtubedl-android runtime, and the Manrope typeface — retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and complete the distribution and source obligations before publishing binaries.
