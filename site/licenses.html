@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Licences — SonicBrief</title>
+<meta name="description" content="SonicBrief is MIT-licensed. The Android app in android/ is GPL-3.0-only because it links a GPL acquisition runtime.">
+<link rel="canonical" href="https://nestchao.github.io/SonicBrief/licenses.html">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#FCFCFD" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#08080B" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/img/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/manrope-400.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="assets/fonts/manrope-800.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/css/styles.css">
+<script>
+(function () {
+  try {
+    document.documentElement.classList.add("js");
+    var stored = localStorage.getItem("sb-theme");
+    var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = stored === "light" || stored === "dark" ? stored : dark ? "dark" : "light";
+  } catch (error) {
+    document.documentElement.dataset.theme = "light";
+  }
+})();
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header" data-header>
+  <div class="container site-header__inner">
+    <a class="brand" href="./" aria-label="SonicBrief home">
+      <img class="brand__mark" src="assets/img/icon-512.png" alt="" width="32" height="32" decoding="async">
+      <span class="brand__name">SonicBrief</span>
+    </a>
+    <div class="nav__actions">
+      <a class="btn btn--outline btn--sm" href="./">Back to the site</a>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="section">
+  <div class="container" style="max-width: 820px">
+    <header class="section__head">
+      <p class="eyebrow">Licences</p>
+      <h1 class="section__title">What you can do with it.</h1>
+      <p class="section__sub">SonicBrief is open source. Two licences apply, because the Android app links a GPL runtime that the rest of the project does not use.</p>
+    </header>
+
+    <div class="compare__grid" style="grid-template-columns: 1fr; max-width: none">
+      <article class="plan plan--brand">
+        <header class="plan__head">
+          <h3>Everything except <code>android/</code></h3>
+          <p>MIT © 2026 nestchao</p>
+        </header>
+        <ul class="plan__rows">
+          <li><span class="plan__k">Covers</span><span class="plan__v">The web workspace, FastAPI backend, desktop shell, Chrome extension, MCP server and this website</span></li>
+          <li><span class="plan__k">You can</span><span class="plan__v">Use, copy, modify, merge, publish, sublicense and sell it</span></li>
+          <li><span class="plan__k">You must</span><span class="plan__v">Keep the copyright notice and licence text with copies</span></li>
+          <li><span class="plan__k">Warranty</span><span class="plan__v">None — provided as is</span></li>
+        </ul>
+        <p class="panel__fine"><a href="https://github.com/nestchao/SonicBrief/blob/main/LICENSE">Read the MIT licence →</a></p>
+      </article>
+
+      <article class="plan">
+        <header class="plan__head">
+          <h3>The Android app</h3>
+          <p>GPL-3.0-only</p>
+        </header>
+        <ul class="plan__rows">
+          <li><span class="plan__k">Why</span><span class="plan__v">It links the GPL-3.0 youtubedl-android acquisition runtime</span></li>
+          <li><span class="plan__k">You can</span><span class="plan__v">Use, study, share and modify it</span></li>
+          <li><span class="plan__k">You must</span><span class="plan__v">Offer the source of the version you distribute, under the same licence</span></li>
+        </ul>
+        <p class="panel__fine"><a href="https://github.com/nestchao/SonicBrief/blob/main/android/LICENSE">Read the GPL-3.0 licence →</a> · <a href="https://github.com/nestchao/SonicBrief/tree/main/android">Android source →</a></p>
+      </article>
+
+      <article class="plan">
+        <header class="plan__head">
+          <h3>Third-party components</h3>
+          <p>Their own terms</p>
+        </header>
+        <ul class="plan__rows">
+          <li><span class="plan__k">Bundled</span><span class="plan__v">FFmpeg, yt-dlp, faster-whisper, CTranslate2, the youtubedl-android runtime, Whisper model weights</span></li>
+          <li><span class="plan__k">Typeface</span><span class="plan__v">Manrope, SIL Open Font License 1.1</span></li>
+          <li><span class="plan__k">Full list</span><span class="plan__v">Every notice, version and obligation is in the repository</span></li>
+        </ul>
+        <p class="panel__fine"><a href="https://github.com/nestchao/SonicBrief/blob/main/THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md →</a></p>
+      </article>
+    </div>
+
+    <p class="section__note">This page is static HTML, CSS and JavaScript. It sets no cookies, loads nothing from a third party and runs no analytics; the only network request is an optional one to the public GitHub API for the star count and release links.</p>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container footer__legal" style="border-top: 0; padding-top: 0">
+    <p>
+      <span>© <span data-year>2026</span> nestchao</span>
+      <span aria-hidden="true">·</span>
+      <span>MIT, and GPL-3.0-only for android/</span>
+    </p>
+    <p><a href="./">SonicBrief</a></p>
+  </div>
+</footer>
+
+<script type="module">
+  for (const node of document.querySelectorAll("[data-year]")) node.textContent = new Date().getFullYear();
+  const header = document.querySelector("[data-header]");
+  const update = () => header.classList.toggle("is-stuck", window.scrollY > 8);
+  update();
+  addEventListener("scroll", update, { passive: true });
+</script>
+</body>
+</html>

@@ -23,7 +23,7 @@ Paste a YouTube, Bilibili, Vimeo, TikTok, X, SoundCloud or Twitch link — or dr
 </p>
 
 <p align="center">
-  <strong><a href="#-download">⬇️ Download</a> · <a href="#-quick-start">🚀 Quick start</a> · <a href="#-android-app">📱 Android</a> · <a href="#-faq">❓ FAQ</a></strong>
+  <strong><a href="https://nestchao.github.io/SonicBrief/">🌐 Website</a> · <a href="#-download">⬇️ Download</a> · <a href="#-quick-start">🚀 Quick start</a> · <a href="#-android-app">📱 Android</a> · <a href="#-faq">❓ FAQ</a></strong>
 </p>
 
 <p align="center">

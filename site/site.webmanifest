@@ -1,0 +1,28 @@
+{
+  "name": "SonicBrief — local-first transcription",
+  "short_name": "SonicBrief",
+  "description": "Turn any video into a timestamped transcript and a clean summary. Local Whisper on Windows, a standalone Android app, a Chrome extension and an MCP server.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fcfcfd",
+  "theme_color": "#5b46fb",
+  "icons": [
+    {
+      "src": "assets/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/img/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/img/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

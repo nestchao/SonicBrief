@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found — SonicBrief</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="This page is not part of SonicBrief. Head back to the home page for downloads, screenshots and the FAQ.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/styles.css">
+<script>
+(function () {
+  try {
+    document.documentElement.classList.add("js");
+    var stored = localStorage.getItem("sb-theme");
+    var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = stored === "light" || stored === "dark" ? stored : dark ? "dark" : "light";
+  } catch (error) {
+    document.documentElement.dataset.theme = "light";
+  }
+})();
+</script>
+</head>
+<body>
+<main id="main" class="hero" style="min-height: 100dvh; display: grid; align-items: center">
+  <div class="hero__glow" aria-hidden="true"></div>
+  <div class="container hero__inner" style="text-align: center">
+    <p class="eyebrow"><span class="dot" aria-hidden="true"></span>404</p>
+    <h1 class="hero__title" style="max-width: 16ch">This page isn’t in the transcript.</h1>
+    <p class="hero__sub" style="max-width: 46ch">The link may be old, or the file moved. Everything the site has to say is on the home page.</p>
+    <div class="hero__actions">
+      <a class="btn btn--primary btn--lg" href="./">Back to SonicBrief</a>
+      <a class="btn btn--outline btn--lg" href="https://github.com/nestchao/SonicBrief" rel="noopener">Open GitHub</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

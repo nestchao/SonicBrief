@@ -5,6 +5,9 @@ dist/
 .wrangler/
 .venv/
 
+# Local screenshot intake. The chosen captures live in docs/ and are committed.
+/assets/
+
 # Local environment files (never commit secrets)
 .env
 .env.local
