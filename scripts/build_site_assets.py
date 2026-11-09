@@ -37,15 +37,11 @@ FONT_SRC = ROOT / "android" / "app" / "src" / "main" / "res" / "font"
 IMG_OUT = ROOT / "site" / "assets" / "img"
 FONT_OUT = ROOT / "site" / "assets" / "fonts"
 
-# The captured window is 1532x815 at 100%: a 306 px sidebar, then the content
-# area, with the Windows title bar occupying the first 28 px. Cropping at the
-# sidebar keeps the marketing shots focused on the workspace and, deliberately,
-# leaves out the two failing jobs that happen to sit in that user's history.
-# The content area ends with a 14 px scrollbar, so the right inset is larger.
-DESKTOP_CROP = (306, 28, -16, -2)
-DESKTOP_WIDTHS = (1224, 612)
-# Nominal frame size of a full content-area crop; shorter crops are padded to it.
-DESKTOP_PAD_W, DESKTOP_PAD_H = 1224, 795
+# Captures are 1920x1020 windows. The only chrome is the Windows 11 title bar in
+# the first 29 px; the app window fills the rest edge to edge, so nothing else
+# is trimmed and the sidebar (all Completed jobs) stays in frame.
+DESKTOP_CROP = (0, 29, 0, 0)
+DESKTOP_WIDTHS = (1920, 960)
 ANDROID_WIDTH = 720
 
 WEBP_QUALITY = 82
@@ -54,12 +50,11 @@ WEBP_QUALITY = 82
 # The tour re-uses summary.jpg with a lower crop so the same capture reads as a
 # different screen (timestamp chips in the body) without a second screenshot.
 DESKTOP_SHOTS = {
-    "desktop-hero": ("summary.jpg", None, "Summary view with the video title and tab strip"),
-    "desktop-transcript": ("transcript.jpg", None, "Transcript with 408 timestamped segments"),
-    "desktop-details": ("details.jpg", None, "Details panel: model, engine, duration"),
-    "desktop-new-brief": ("new-brief-advanced.jpg", None, "New transcription dialog, advanced options"),
-    "desktop-settings": ("settings-gemini.jpg", None, "Gemini settings, key connected"),
-    "desktop-downloads": ("settings-downloads.jpg", None, "Download settings and cookies"),
+    "desktop-hero": ("summary.png", None, "Summary view with the sidebar and recent briefs"),
+    "desktop-transcript": ("transcript.png", None, "Transcript with 408 timestamped segments"),
+    "desktop-details": ("details.png", None, "Details panel: model, engine, duration"),
+    "desktop-new-brief": ("new-brief.png", None, "New transcription dialog, media URL"),
+    "desktop-settings": ("settings-extension.png", None, "Browser extension install steps"),
 }
 
 # Phone captures already committed under docs/android.
@@ -105,10 +100,6 @@ def build_desktop() -> None:
             shot = raw.convert("RGB")
         left, top, right, bottom = override or DESKTOP_CROP
         shot = shot.crop((left, top, shot.width + right, shot.height + bottom))
-        # Every panel shares one aspect ratio so the tour never jumps height.
-        # Shorter crops are padded with the page colour instead of stretched.
-        base = ImageOps.pad(shot, (DESKTOP_PAD_W, DESKTOP_PAD_H), color=shot.getpixel((2, shot.height - 3)), centering=(0.5, 0.0))
-        shot = base
         for width in DESKTOP_WIDTHS:
             suffix = "" if width == DESKTOP_WIDTHS[0] else f"-{width}"
             height = round(shot.height * width / shot.width)

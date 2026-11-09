@@ -1148,7 +1148,7 @@
 
   .tour__panels {
     position: relative;
-    aspect-ratio: 1224 / 795;
+    aspect-ratio: 1920 / 991;
     background: var(--surface-2);
   }
 
@@ -1708,37 +1708,36 @@
      exactly 9:16, so the whole screenshot fits and nothing is cropped away by
      object-fit. The 1px inner ring gives the white app a finished edge against
      the black bezel instead of a hard clipped rectangle. */
-  /* Screenshots are shown whole. A rounded mask would clip the corner pixels
-     of the capture itself — status-bar icons, the bottom nav — so the frame is
-     square, with a hairline and a soft shadow doing the visual work instead. */
-  .screen {
+  /* A device frame that cannot crop. The bezel is rounded, the screen inside it
+     keeps a 12px mat, and the capture sits square inside that mat — so the
+     curved edge stops roughly 3px short of the image's corners at the diagonal.
+     Every pixel of the screenshot stays visible. */
+  .phone {
     position: relative;
-    width: 236px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
+    width: 320px;
+    padding: 8px;
+    border-radius: 40px;
+    background: linear-gradient(155deg, #34343f 0%, #17171f 42%, #0a0a0f 100%);
     box-shadow:
-      0 20px 44px -26px rgba(16, 12, 46, 0.4),
-      0 1px 2px rgba(16, 12, 46, 0.06);
-    transition:
-      transform 0.26s var(--ease),
-      border-color 0.26s var(--ease),
-      box-shadow 0.3s var(--ease);
+      0 30px 60px -32px rgba(8, 8, 20, 0.75),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.13);
+    transition: transform 0.26s var(--ease), box-shadow 0.3s var(--ease);
   }
 
-  html[data-theme="dark"] .screen {
-    box-shadow:
-      0 20px 44px -24px rgba(0, 0, 0, 0.9),
-      0 1px 2px rgba(0, 0, 0, 0.5);
+  .phone__screen {
+    padding: 12px;
+    border-radius: 32px;
+    background: #07070b;
   }
 
-  .screen img {
+  .phone__screen img {
     display: block;
     width: 100%;
     height: auto;
   }
 
-  .screen--panel {
-    width: 264px;
+  .phone--panel {
+    width: 296px;
   }
 
   /* --- browser frame ----------------------------------------------------- */
@@ -1824,16 +1823,15 @@
     margin: 0;
   }
 
-  .shot .screen {
-    width: min(300px, 100%);
+  .shot .phone {
+    width: min(320px, 100%);
   }
 
-  .shot:hover .screen {
+  .shot:hover .phone {
     transform: translateY(-4px);
-    border-color: var(--brand-line);
     box-shadow:
-      0 34px 64px -32px rgba(16, 12, 46, 0.5),
-      0 2px 6px rgba(16, 12, 46, 0.06);
+      0 38px 70px -34px rgba(8, 8, 20, 0.8),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   }
 
   .shot figcaption {
@@ -2353,9 +2351,9 @@
       scroll-snap-align: center;
     }
 
-    .shot .screen {
+    .shot .phone {
       width: 100%;
-      max-width: 300px;
+      max-width: 320px;
     }
 
     .privacy__grid {

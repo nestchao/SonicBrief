@@ -32,7 +32,7 @@
 
 <link rel="preload" href="assets/fonts/manrope-400.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="preload" href="assets/fonts/manrope-800.ttf" as="font" type="font/ttf" crossorigin>
-<link rel="preload" href="assets/img/desktop-hero-612.webp" as="image" type="image/webp" imagesrcset="assets/img/desktop-hero-612.webp 612w, assets/img/desktop-hero.webp 1224w" imagesizes="(max-width: 820px) 92vw, 1080px">
+<link rel="preload" href="assets/img/desktop-hero-960.webp" as="image" type="image/webp" imagesrcset="assets/img/desktop-hero-960.webp 960w, assets/img/desktop-hero.webp 1920w" imagesizes="(max-width: 820px) 92vw, 1080px">
 <link rel="stylesheet" href="assets/css/styles.css">
 
 <link rel="alternate" hreflang="en" href="https://nestchao.github.io/SonicBrief/">
@@ -198,10 +198,10 @@
           </div>
           <div class="window__body">
             <img
-              src="assets/img/desktop-hero-612.webp"
-              srcset="assets/img/desktop-hero-612.webp 612w, assets/img/desktop-hero.webp 1224w"
+              src="assets/img/desktop-hero-960.webp"
+              srcset="assets/img/desktop-hero-960.webp 960w, assets/img/desktop-hero.webp 1920w"
               sizes="(max-width: 820px) 92vw, 1080px"
-              width="1224" height="795" fetchpriority="high" decoding="async"
+              width="1920" height="991" fetchpriority="high" decoding="async"
               alt="SonicBrief desktop app: a 24-minute Bilibili video transcribed, with the Summary tab open and timestamp chips inline."
               data-i18n-attr="alt" data-i18n="hero.imgAlt">
           </div>
@@ -280,34 +280,34 @@
           <div class="tour__panels">
             <div class="tour__panel is-active" role="tabpanel" id="tour-panel-1" data-panel="fade" aria-labelledby="tour-tab-1">
               <img
-                 src="assets/img/desktop-transcript-612.webp"
-                 srcset="assets/img/desktop-transcript-612.webp 612w, assets/img/desktop-transcript.webp 1224w"
-                 sizes="(max-width: 900px) 94vw, 1100px" width="1224" height="792" loading="lazy" decoding="async"
+                 src="assets/img/desktop-transcript-960.webp"
+                 srcset="assets/img/desktop-transcript-960.webp 960w, assets/img/desktop-transcript.webp 1920w"
+                 sizes="(max-width: 900px) 94vw, 1100px" width="1920" height="991" loading="lazy" decoding="async"
                  alt="Transcript tab: 408 timestamped segments with search and a copy button."
                  data-i18n-attr="alt" data-i18n="tour.alt1">
             </div>
             <div class="tour__panel" role="tabpanel" id="tour-panel-2" data-panel="fade" aria-labelledby="tour-tab-2">
               <img
-                 src="assets/img/desktop-details-612.webp"
-                 srcset="assets/img/desktop-details-612.webp 612w, assets/img/desktop-details.webp 1224w"
-                 sizes="(max-width: 900px) 94vw, 1100px" width="1224" height="794" loading="lazy" decoding="async"
+                 src="assets/img/desktop-details-960.webp"
+                 srcset="assets/img/desktop-details-960.webp 960w, assets/img/desktop-details.webp 1920w"
+                 sizes="(max-width: 900px) 94vw, 1100px" width="1920" height="991" loading="lazy" decoding="async"
                  alt="Details tab: source, creator, duration, transcript language, Whisper model and processing engine."
                  data-i18n-attr="alt" data-i18n="tour.alt2">
             </div>
             <div class="tour__panel" role="tabpanel" id="tour-panel-3" data-panel="fade" aria-labelledby="tour-tab-3">
               <img
-                 src="assets/img/desktop-new-brief-612.webp"
-                 srcset="assets/img/desktop-new-brief-612.webp 612w, assets/img/desktop-new-brief.webp 1224w"
-                 sizes="(max-width: 900px) 94vw, 1100px" width="1224" height="795" loading="lazy" decoding="async"
+                 src="assets/img/desktop-new-brief-960.webp"
+                 srcset="assets/img/desktop-new-brief-960.webp 960w, assets/img/desktop-new-brief.webp 1920w"
+                 sizes="(max-width: 900px) 94vw, 1100px" width="1920" height="991" loading="lazy" decoding="async"
                  alt="New transcription dialog with a media URL field and advanced options for model, language and summary style."
                  data-i18n-attr="alt" data-i18n="tour.alt3">
             </div>
             <div class="tour__panel" role="tabpanel" id="tour-panel-4" data-panel="fade" aria-labelledby="tour-tab-4">
               <img
-                 src="assets/img/desktop-settings-612.webp"
-                 srcset="assets/img/desktop-settings-612.webp 612w, assets/img/desktop-settings.webp 1224w"
-                 sizes="(max-width: 900px) 94vw, 1100px" width="1224" height="782" loading="lazy" decoding="async"
-                 alt="Settings dialog: Gemini API key stored locally, model picker loaded from the key’s real capabilities."
+                 src="assets/img/desktop-settings-960.webp"
+                 srcset="assets/img/desktop-settings-960.webp 960w, assets/img/desktop-settings.webp 1920w"
+                 sizes="(max-width: 900px) 94vw, 1100px" width="1920" height="991" loading="lazy" decoding="async"
+                 alt="Settings dialog on the browser extension tab: open chrome://extensions, enable Developer mode, load the unpacked folder."
                  data-i18n-attr="alt" data-i18n="tour.alt4">
             </div>
           </div>
@@ -323,7 +323,7 @@
           <span data-i18n="tour.cap3">One field for the link, two clicks to start. The advanced options stay folded until you want them.</span>
         </p>
         <p class="tour__caption" data-tour-caption hidden>
-          <span data-i18n="tour.cap4">Your key stays on disk and never comes back to the UI. The model list is read from Google.</span>
+          <span data-i18n="tour.cap4">Load the extension once: five steps, and the folder path is copied for you.</span>
         </p>
       </div>
     </div>
@@ -609,8 +609,8 @@
             </div>
             <div class="panel__art">
               <div class="window window--sm">
-                <div class="window__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window__title" data-i18n="plat.winArt">Download settings</span></div>
-                <img src="assets/img/desktop-downloads-612.webp" srcset="assets/img/desktop-downloads-612.webp 612w, assets/img/desktop-downloads.webp 1224w" sizes="(max-width: 900px) 92vw, 520px" width="1224" height="794" loading="lazy" decoding="async" alt="SonicBrief download settings with the cookie source picker for YouTube." data-i18n-attr="alt" data-i18n="plat.winArtAlt">
+                <div class="window__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window__title" data-i18n="plat.winArt">Job details</span></div>
+                <img src="assets/img/desktop-details-960.webp" srcset="assets/img/desktop-details-960.webp 960w, assets/img/desktop-details.webp 1920w" sizes="(max-width: 900px) 92vw, 520px" width="1920" height="991" loading="lazy" decoding="async" alt="Job details: source, creator, duration, transcript language, Whisper model and processing engine." data-i18n-attr="alt" data-i18n="plat.winArtAlt">
               </div>
             </div>
           </div>
@@ -637,8 +637,10 @@
               <p class="panel__fine" data-i18n="plat.andFine">Release builds are signed. Debug builds use a separate package name, so both can live on the same phone.</p>
             </div>
             <div class="panel__art panel__art--phone">
-              <div class="screen screen--panel">
-                <img src="assets/img/android-progress.webp" width="720" height="1280" loading="eager" decoding="async" alt="Android app showing the five-step progress timeline with an elapsed clock." data-i18n-attr="alt" data-i18n="plat.andArtAlt">
+              <div class="phone phone--panel">
+                <div class="phone__screen">
+                  <img src="assets/img/android-progress.webp" width="720" height="1280" loading="eager" decoding="async" alt="Android app showing the five-step progress timeline with an elapsed clock." data-i18n-attr="alt" data-i18n="plat.andArtAlt">
+                </div>
               </div>
             </div>
           </div>
@@ -746,43 +748,55 @@ cd SonicBrief
 
       <div class="gallery__rail">
         <figure class="shot">
-          <div class="screen">
-            <img src="assets/img/android-home.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android home screen with a media link field, a local file picker and a floating navigation bar." data-i18n-attr="alt" data-i18n="gal.alt1">
+          <div class="phone">
+            <div class="phone__screen">
+              <img src="assets/img/android-home.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android home screen with a media link field, a local file picker and a floating navigation bar." data-i18n-attr="alt" data-i18n="gal.alt1">
+            </div>
           </div>
           <figcaption data-i18n="gal.cap1">Capture a link or a file</figcaption>
         </figure>
 
         <figure class="shot">
-          <div class="screen">
-            <img src="assets/img/android-progress.webp" width="720" height="1280" loading="eager" decoding="async" alt="Android job screen showing five named steps and a live elapsed clock." data-i18n-attr="alt" data-i18n="gal.alt2">
+          <div class="phone">
+            <div class="phone__screen">
+              <img src="assets/img/android-progress.webp" width="720" height="1280" loading="eager" decoding="async" alt="Android job screen showing five named steps and a live elapsed clock." data-i18n-attr="alt" data-i18n="gal.alt2">
+            </div>
           </div>
           <figcaption data-i18n="gal.cap2">Five named steps, live</figcaption>
         </figure>
 
         <figure class="shot">
-          <div class="screen">
-            <img src="assets/img/android-summary.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android summary screen with Markdown headings, bullets and inline timestamp chips." data-i18n-attr="alt" data-i18n="gal.alt3">
+          <div class="phone">
+            <div class="phone__screen">
+              <img src="assets/img/android-summary.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android summary screen with Markdown headings, bullets and inline timestamp chips." data-i18n-attr="alt" data-i18n="gal.alt3">
+            </div>
           </div>
           <figcaption data-i18n="gal.cap3">Summaries as real Markdown</figcaption>
         </figure>
 
         <figure class="shot">
-          <div class="screen">
-            <img src="assets/img/android-settings.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android settings screen for the Gemini API key and model selection." data-i18n-attr="alt" data-i18n="gal.alt4">
+          <div class="phone">
+            <div class="phone__screen">
+              <img src="assets/img/android-settings.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android settings screen for the Gemini API key and model selection." data-i18n-attr="alt" data-i18n="gal.alt4">
+            </div>
           </div>
           <figcaption data-i18n="gal.cap4">Your key, encrypted on device</figcaption>
         </figure>
 
         <figure class="shot">
-          <div class="screen">
-            <img src="assets/img/android-transcript.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android transcript tab with timestamped segments." data-i18n-attr="alt" data-i18n="gal.alt5">
+          <div class="phone">
+            <div class="phone__screen">
+              <img src="assets/img/android-transcript.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android transcript tab with timestamped segments." data-i18n-attr="alt" data-i18n="gal.alt5">
+            </div>
           </div>
           <figcaption data-i18n="gal.cap5">The full transcript, timecoded</figcaption>
         </figure>
 
         <figure class="shot">
-          <div class="screen">
-            <img src="assets/img/android-dark.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android app in dark mode." data-i18n-attr="alt" data-i18n="gal.alt6">
+          <div class="phone">
+            <div class="phone__screen">
+              <img src="assets/img/android-dark.webp" width="720" height="1280" loading="lazy" decoding="async" alt="Android app in dark mode." data-i18n-attr="alt" data-i18n="gal.alt6">
+            </div>
           </div>
           <figcaption data-i18n="gal.cap6">Dark mode, same system</figcaption>
         </figure>
