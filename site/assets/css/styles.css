@@ -1268,6 +1268,22 @@
     font-weight: 400;
   }
 
+  /* Documentation variant: label column, left-aligned values, no marks. */
+  .plan--doc .plan__rows li {
+    display: grid;
+    grid-template-columns: minmax(84px, 132px) 1fr;
+    align-items: start;
+    gap: 16px;
+  }
+
+  .plan--doc .plan__v {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
   .mark {
     display: inline-grid;
     place-items: center;
