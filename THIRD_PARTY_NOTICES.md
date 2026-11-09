@@ -143,6 +143,11 @@ licenses of the Android libraries listed here.
   Gemini API calls (resumable Files upload, generateContent, listModels).
 - `org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1` — Apache License 2.0.
   Used for Gemini request/response parsing.
+- Manrope typeface (bundled under `android/app/src/main/res/font/` as static
+  weights 400-800) — SIL Open Font License 1.1, Copyright 2019 The Manrope
+  Project Authors. Used for the in-app typography; the full OFL text is
+  reproduced in `android/FONTS_OFL.txt`. See
+  https://github.com/googlefonts/manrope.
 
 When distributing SonicBrief Android APKs, preserve the notices shipped by
 these dependencies and make the corresponding `android/` source available
