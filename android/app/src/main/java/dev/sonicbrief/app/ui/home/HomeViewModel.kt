@@ -68,6 +68,7 @@ class HomeViewModel @Inject constructor(
     fun onInstructionsChange(value: String) = _state.update { it.copy(instructions = value.take(4_000)) }
     fun clearError() = _state.update { it.copy(error = null) }
     fun consumeOpenJob() = _state.update { it.copy(openJobId = null) }
+    fun requestOpenJob(id: UUID) = _state.update { it.copy(openJobId = id) }
 
     /** Counts inbound shares so the UI can jump to Home when one arrives. */
     private val _shareRequests = MutableStateFlow(0)

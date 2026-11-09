@@ -30,6 +30,10 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <receiver
+            android:name=".data.background.CancelJobReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

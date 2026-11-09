@@ -66,6 +66,7 @@ import dev.sonicbrief.app.domain.model.JobStatus
 import dev.sonicbrief.app.ui.history.HistoryScreen
 import dev.sonicbrief.app.ui.home.HomeScreen
 import dev.sonicbrief.app.ui.home.HomeViewModel
+import dev.sonicbrief.app.ui.result.ActiveJobScreen
 import dev.sonicbrief.app.ui.result.JobDetailScreen
 import dev.sonicbrief.app.ui.result.JobDetailViewModel
 import dev.sonicbrief.app.ui.settings.SettingsScreen
@@ -89,7 +90,12 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
-                SonicBriefApp(homeViewModel, settingsViewModel, jobDetailViewModel)
+                SonicBriefApp(
+                    homeViewModel,
+                    settingsViewModel,
+                    jobDetailViewModel,
+                    openJobId = intent?.openJobId(),
+                )
             }
         }
     }
@@ -98,6 +104,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShareIntent(intent)
+        intent.openJobId()?.let { id -> homeViewModel.requestOpenJob(id) }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_JOB_ID = "dev.sonicbrief.app.OPEN_JOB_ID"
     }
 
     /** Handles "Share → SonicBrief" from YouTube/Bilibili/etc. and from file managers. */
@@ -133,6 +144,7 @@ private fun SonicBriefApp(
     homeViewModel: HomeViewModel,
     settingsViewModel: SettingsViewModel,
     jobDetailViewModel: JobDetailViewModel,
+    openJobId: UUID?,
 ) {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
@@ -142,6 +154,16 @@ private fun SonicBriefApp(
     val hasKey by homeViewModel.hasApiKey.collectAsStateWithLifecycle()
     val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
     val detailState by jobDetailViewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(openJobId) {
+        if (openJobId != null) homeViewModel.requestOpenJob(openJobId)
+    }
+    LaunchedEffect(homeState.openJobId) {
+        homeState.openJobId?.let { id ->
+            nav.navigate(Routes.job(id))
+            homeViewModel.consumeOpenJob()
+        }
+    }
     val shareRequests by homeViewModel.shareRequests.collectAsStateWithLifecycle()
 
     // A share from YouTube/Bilibili/a file manager always lands on Home with the content ready.
@@ -221,10 +243,11 @@ private fun SonicBriefApp(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         contentAlignment = Alignment.Center,
                     ) { Text("This item no longer exists.") }
-                    job.status == JobStatus.ACTIVE -> Box(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { Text("${job.displayTitle}\n${job.stageDetail ?: "Working"} — ${job.progress}%") }
+                    job.status == JobStatus.ACTIVE -> ActiveJobScreen(
+                        job = job,
+                        onBack = { nav.popBackStack() },
+                        onCancel = { homeViewModel.cancel(job.id) },
+                    )
                     else -> {
                         LaunchedEffect(job.id, job.status, job.updatedAt) { jobDetailViewModel.openJob(job) }
                         JobDetailScreen(
@@ -332,3 +355,6 @@ private fun navigateTop(nav: NavHostController, route: String) {
         restoreState = true
     }
 }
+
+private fun Intent.openJobId(): UUID? =
+    getStringExtra(MainActivity.EXTRA_OPEN_JOB_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }

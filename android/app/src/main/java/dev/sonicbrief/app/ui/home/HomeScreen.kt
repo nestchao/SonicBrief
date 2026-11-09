@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import dev.sonicbrief.app.domain.model.Job
 import dev.sonicbrief.app.domain.model.JobStatus
 import dev.sonicbrief.app.ui.components.ChoicePill
+import dev.sonicbrief.app.ui.components.ElapsedClock
 import dev.sonicbrief.app.ui.components.EmptyState
 import dev.sonicbrief.app.ui.components.GradientProgress
 import dev.sonicbrief.app.ui.components.PrimaryButton
@@ -61,11 +62,13 @@ import dev.sonicbrief.app.ui.components.SectionLabel
 import dev.sonicbrief.app.ui.components.SecondaryButton
 import dev.sonicbrief.app.ui.components.SoftCard
 import dev.sonicbrief.app.ui.components.SonicTextField
+import dev.sonicbrief.app.ui.components.StageTimeline
 import dev.sonicbrief.app.ui.components.StatusPill
 import dev.sonicbrief.app.ui.components.pillLabel
 import dev.sonicbrief.app.ui.components.pillTone
 import dev.sonicbrief.app.ui.icons.SonicIcons
 import dev.sonicbrief.app.ui.result.SummaryTemplate
+import dev.sonicbrief.app.ui.result.stepIndexFor
 import dev.sonicbrief.app.ui.theme.BrandGradient
 import dev.sonicbrief.app.ui.theme.Indigo600
 
@@ -295,6 +298,7 @@ private fun SetupCard(onOpenSettings: () -> Unit) {
 
 @Composable
 private fun ActiveJobCard(active: Job, onCancel: () -> Unit) {
+    val step = stepIndexFor(active.stage)
     SoftCard(containerColor = MaterialTheme.colorScheme.surface) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -314,23 +318,22 @@ private fun ActiveJobCard(active: Job, onCancel: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    active.stageDetail ?: active.stage.name.lowercase().replace('_', ' '),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                ElapsedClock(startedAt = active.createdAt, prefix = "Elapsed ")
             }
             Text(
                 "${active.progress}%",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
         Spacer(Modifier.height(14.dp))
         GradientProgress(progress = active.progress / 100f)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(16.dp))
+        StageTimeline(
+            currentStep = step,
+            activeDetail = active.stageDetail ?: active.stage.name.lowercase().replace('_', ' '),
+        )
+        Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
