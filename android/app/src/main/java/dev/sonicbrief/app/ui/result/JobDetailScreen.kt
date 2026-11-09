@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import dev.sonicbrief.app.domain.model.TranscriptSourceKind
 import dev.sonicbrief.app.ui.components.ChoicePill
 import dev.sonicbrief.app.ui.components.SectionLabel
+import dev.sonicbrief.app.ui.components.SelectableMarkdownText
 import dev.sonicbrief.app.ui.components.SoftCard
 import dev.sonicbrief.app.ui.components.SoftDivider
 import dev.sonicbrief.app.ui.components.SonicTextField
@@ -434,11 +435,7 @@ private fun SummarySection(
                         }
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        latestSummary.content,
-                        style = MaterialTheme.typography.bodyLarge,
-                        lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.15f,
-                    )
+                    SelectableMarkdownText(latestSummary.content)
                 }
                 SoftDivider()
                 Row(
