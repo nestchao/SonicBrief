@@ -99,7 +99,7 @@ Send videos from Chrome | [Chrome extension](#-chrome-extension) | The desktop o
 
 Platform | File | Requirements
 ---|---|---
-**Android** | `SonicBrief-android-universal.apk` (or the `arm64-v8a` split) | Android 8.0+, your own Gemini key
+**Android** | `app-universal-release.apk` (or `app-arm64-v8a-release.apk`) | Android 8.0+, your own Gemini key
 **Windows** installer, NVIDIA | `SonicBrief-Setup-gpu.exe` + optional `SonicBrief-CudaPack.zip` | Windows 10/11 64-bit
 **Windows** installer, any PC | `SonicBrief-Setup-cpu.exe` | Windows 10/11 64-bit
 **Chrome extension** | `extension/` folder (Load unpacked) | Chrome / Edge
@@ -125,7 +125,7 @@ A standalone APK in `android/` (`applicationId dev.sonicbrief.mobile`). No Supab
   </tr>
 </table>
 
-- **Install:** download the universal APK, or the split matching your phone (most modern phones are `arm64-v8a`). Debug builds are `*-debug.apk`; release builds are signed.
+- **Install:** download `app-universal-release.apk`, or the split matching your phone (most modern phones are `arm64-v8a`). Debug builds are `*-debug.apk`; release builds are signed.
 - **Setup:** open **Settings → API key**, paste a key from Google AI Studio, and press **Validate & save**. The app lists the models that key can actually use.
 - **Use:** paste a YouTube or Bilibili link, pick a local MP3/MP4, or **share a link or file to SonicBrief from any app** — the link lands on Home ready to run.
 - **Progress you can read:** every job walks five named steps (check link → download → upload → transcribe → summarize) with a live elapsed clock, shown in the app, on the job card, and in the notification — which also has a **Cancel** action.
