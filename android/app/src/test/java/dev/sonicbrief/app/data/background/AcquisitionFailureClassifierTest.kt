@@ -49,6 +49,25 @@ class AcquisitionFailureClassifierTest {
     }
 
     @Test
+    fun staleRuntimeWarningIsRetriedWithUpdateGuidance() {
+        val kind = classifier.classify(
+            IllegalStateException("WARNING: Your yt-dlp version (2025.11.12) is older than 90 days!"),
+        )
+        assertEquals(AcquisitionFailureKind.STALE_RUNTIME, kind)
+        assertTrue(classifier.retryable(kind))
+        assertTrue(classifier.userRetryAllowed(kind))
+        assertTrue(classifier.userMessage(kind, "fallback").contains("tap Retry"))
+    }
+
+    @Test
+    fun failedRuntimeUpdateIsStaleRuntime() {
+        val kind = classifier.classify(
+            IllegalStateException("The built-in downloader needs an update but the update failed: timeout"),
+        )
+        assertEquals(AcquisitionFailureKind.STALE_RUNTIME, kind)
+    }
+
+    @Test
     fun cancellationIsNotRetried() {
         val kind = classifier.classify(CancellationException("cancelled"))
         assertEquals(AcquisitionFailureKind.CANCELLED, kind)

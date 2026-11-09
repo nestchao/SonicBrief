@@ -17,6 +17,11 @@ class AcquisitionFailureClassifier @Inject constructor() {
 
         val message = flattenMessages(throwable).lowercase()
         return when {
+            message.contains("older than 90 days") ||
+                message.contains("your yt-dlp version") ||
+                message.contains("downloader needs an update") ->
+                AcquisitionFailureKind.STALE_RUNTIME
+
             message.contains("sign in to confirm you're not a bot") ||
                 message.contains("sign in to confirm you’re not a bot") ||
                 message.contains("confirm you're not a bot") ||
@@ -63,7 +68,8 @@ class AcquisitionFailureClassifier @Inject constructor() {
 
     fun retryable(kind: AcquisitionFailureKind): Boolean =
         kind == AcquisitionFailureKind.TRANSIENT_NETWORK ||
-            kind == AcquisitionFailureKind.RATE_LIMIT
+            kind == AcquisitionFailureKind.RATE_LIMIT ||
+            kind == AcquisitionFailureKind.STALE_RUNTIME
 
     fun userRetryAllowed(kind: AcquisitionFailureKind): Boolean = when (kind) {
         AcquisitionFailureKind.UNSUPPORTED_SOURCE,
@@ -85,6 +91,8 @@ class AcquisitionFailureClassifier @Inject constructor() {
             "This public media source is not supported by the current acquisition runtime."
         AcquisitionFailureKind.AUTH_SESSION_REQUIRED ->
             "The saved cookies are no longer valid. Re-import a fresh cookies.txt in Settings or remove it."
+        AcquisitionFailureKind.STALE_RUNTIME ->
+            "The built-in downloader fell behind the site's changes. Make sure the phone is online and tap Retry — SonicBrief refreshes its downloader automatically."
         AcquisitionFailureKind.CANCELLED ->
             "URL processing was cancelled."
         else -> fallback

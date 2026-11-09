@@ -105,11 +105,11 @@ class AndroidPublicMediaDownloader @Inject constructor(
                 executeMetadataDump()
             } catch (firstFailure: Throwable) {
                 if (firstFailure is CancellationException) throw firstFailure
-                if (url.platform != PublicMediaPlatform.YOUTUBE || !isHttp403(firstFailure)) {
+                if (!shouldRefreshRuntime(url.platform, firstFailure)) {
                     throw firstFailure
                 }
 
-                updateStableYoutubeDlAfter403(youtubeDl)
+                refreshStableRuntime(youtubeDl, describeRefreshReason(url.platform, firstFailure))
                 executeMetadataDump()
             }
 
@@ -166,22 +166,23 @@ class AndroidPublicMediaDownloader @Inject constructor(
                     executeDownload()
                 } catch (firstFailure: Throwable) {
                     if (firstFailure is CancellationException) throw firstFailure
-                    if (url.platform != PublicMediaPlatform.YOUTUBE || !isHttp403(firstFailure)) {
+                    if (!shouldRefreshRuntime(url.platform, firstFailure)) {
                         throw firstFailure
                     }
 
                     workDir.listFiles().orEmpty().forEach { it.deleteRecursively() }
-                    updateStableYoutubeDlAfter403(youtubeDl)
+                    refreshStableRuntime(youtubeDl, describeRefreshReason(url.platform, firstFailure))
 
                     try {
                         executeDownload()
                     } catch (retryFailure: Throwable) {
                         if (retryFailure is CancellationException) throw retryFailure
-                        if (isHttp403(retryFailure)) {
+                        if (isHttp403(retryFailure) || isStaleRuntimeFailure(retryFailure)) {
                             val version = youtubeDl.versionName(context) ?: "latest stable"
                             throw IllegalStateException(
-                                "YouTube still returned HTTP 403 after updating yt-dlp to $version. " +
-                                    "This URL may currently require a newer extractor build or authentication.",
+                                "YouTube still failed after updating the built-in downloader to $version. " +
+                                    "The video may currently need sign-in (import a cookies.txt in Settings → Cookies), " +
+                                    "or YouTube changed again — try again later.",
                                 retryFailure,
                             )
                         }
@@ -292,13 +293,26 @@ class AndroidPublicMediaDownloader @Inject constructor(
         return result.distinct().sorted().take(50)
     }
 
-    private fun updateStableYoutubeDlAfter403(youtubeDl: YoutubeDL) {
+    private fun shouldRefreshRuntime(platform: PublicMediaPlatform, throwable: Throwable): Boolean {
+        if (isStaleRuntimeFailure(throwable)) return true
+        return platform == PublicMediaPlatform.YOUTUBE && isHttp403(throwable)
+    }
+
+    private fun describeRefreshReason(platform: PublicMediaPlatform, throwable: Throwable): String =
+        when {
+            isStaleRuntimeFailure(throwable) -> "the built-in downloader is stale"
+            platform == PublicMediaPlatform.YOUTUBE -> "YouTube returned HTTP 403"
+            else -> "the download failed"
+        }
+
+    private fun refreshStableRuntime(youtubeDl: YoutubeDL, reason: String) {
         try {
             youtubeDl.updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE)
         } catch (updateFailure: Throwable) {
             throw IllegalStateException(
-                "YouTube returned HTTP 403 and the yt-dlp stable update failed: " +
-                    (updateFailure.message ?: "unknown update error"),
+                "The built-in downloader needs an update ($reason) but the update failed: " +
+                    (updateFailure.message ?: "unknown update error") +
+                    ". Check the connection and tap Retry.",
                 updateFailure,
             )
         }
@@ -330,4 +344,24 @@ class AndroidPublicMediaDownloader @Inject constructor(
     companion object {
         const val COOKIES_FILE_NAME = "cookies.txt"
     }
+}
+
+/**
+ * yt-dlp itself warns when its binary is stale ("older than 90 days"); a stale binary breaks
+ * against fast-moving sites even without an HTTP 403, so it earns the same update-and-retry
+ * treatment on any platform.
+ */
+internal fun isStaleRuntimeFailure(throwable: Throwable): Boolean {
+    var current: Throwable? = throwable
+    while (current != null) {
+        val message = current.message.orEmpty()
+        if (
+            message.contains("older than 90 days", ignoreCase = true) ||
+            message.contains("your yt-dlp version", ignoreCase = true)
+        ) {
+            return true
+        }
+        current = current.cause
+    }
+    return false
 }
