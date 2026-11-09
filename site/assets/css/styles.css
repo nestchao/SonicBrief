@@ -1704,10 +1704,13 @@
 
   /* --- phone ------------------------------------------------------------- */
 
+  /* The screen carries the aspect ratio, not the frame: the captures are
+     exactly 9:16, so the whole screenshot fits and nothing is cropped away by
+     object-fit. The 1px inner ring gives the white app a finished edge against
+     the black bezel instead of a hard clipped rectangle. */
   .phone {
     position: relative;
     width: 236px;
-    aspect-ratio: 9 / 16;
     padding: 7px;
     border-radius: 34px;
     background: var(--device);
@@ -1715,13 +1718,16 @@
   }
 
   .phone__screen {
-    height: 100%;
+    position: relative;
+    aspect-ratio: 9 / 16;
     border-radius: 27px;
     overflow: hidden;
     background: #000;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
   }
 
   .phone__screen img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -1729,7 +1735,7 @@
   }
 
   .phone--sm {
-    width: 216px;
+    width: 240px;
   }
 
   /* --- browser frame ----------------------------------------------------- */
