@@ -247,7 +247,7 @@ class GroqTranscriber @Inject constructor(
                 val adjustedRange = range.copy(startMs = actualStartMs)
                 result += AudioChunk(output, "audio/mp4", output.name, range.endMs - actualStartMs, adjustedRange, true)
             }
-            require(result.size == ranges.size && result.lastOrNull()?.range?.endMs ?: 0L >= durationMs - 1_000L) {
+            require(result.size == ranges.size && (result.lastOrNull()?.range?.endMs ?: 0L) >= durationMs - 1_000L) {
                 "M4A chunking did not cover the complete audio duration."
             }
         } catch (failure: Throwable) {
