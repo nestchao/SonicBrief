@@ -169,6 +169,7 @@ fun SettingsScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GroqCard(
     state: SettingsUiState,
