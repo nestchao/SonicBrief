@@ -184,8 +184,8 @@ private fun GroqCard(
         Text("Choose transcription provider", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ChoicePill("Gemini", state.settings.transcriptionProvider == "gemini") { onSaveProvider("gemini") }
-            ChoicePill("Groq Whisper", state.settings.transcriptionProvider == "groq") { onSaveProvider("groq") }
+            ChoicePill(label = "Gemini", selected = state.settings.transcriptionProvider == "gemini", onClick = { onSaveProvider("gemini") })
+            ChoicePill(label = "Groq Whisper", selected = state.settings.transcriptionProvider == "groq", onClick = { onSaveProvider("groq") })
         }
         Spacer(Modifier.height(14.dp))
         Text(
@@ -239,12 +239,16 @@ private fun GroqCard(
         Text("Groq Whisper model", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ChoicePill("Large v3 Turbo", state.settings.groqModel == "whisper-large-v3-turbo") {
-                onSaveGroqModel("whisper-large-v3-turbo")
-            }
-            ChoicePill("Large v3", state.settings.groqModel == "whisper-large-v3") {
-                onSaveGroqModel("whisper-large-v3")
-            }
+            ChoicePill(
+                label = "Large v3 Turbo",
+                selected = state.settings.groqModel == "whisper-large-v3-turbo",
+                onClick = { onSaveGroqModel("whisper-large-v3-turbo") },
+            )
+            ChoicePill(
+                label = "Large v3",
+                selected = state.settings.groqModel == "whisper-large-v3",
+                onClick = { onSaveGroqModel("whisper-large-v3") },
+            )
         }
     }
 }
