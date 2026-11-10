@@ -106,7 +106,7 @@ class ProcessingPipeline @Inject constructor(
             val audio = checkNotNull(prepared)
 
             // 2. Transcribe ---------------------------------------------------------------------
-            val segments = if (useGroq) {
+            val (transcriptionLanguage, rawSegments) = if (useGroq) {
                 report(JobStage.UPLOADING, "Uploading audio to Groq (your audio is sent to Groq)", Bands.ACQUIRE_END + 2)
                 val result = groqTranscriber.transcribe(
                     apiKey = requireNotNull(groqApiKey),
@@ -124,7 +124,7 @@ class ProcessingPipeline @Inject constructor(
                         Bands.UPLOAD_END + (Bands.TRANSCRIBE_END - Bands.UPLOAD_END) * completed / total,
                     )
                 }
-                result.segments
+                result.language to result.segments
             } else {
                 val result = transcriber.transcribe(
                     apiKey = geminiApiKey,
@@ -146,11 +146,12 @@ class ProcessingPipeline @Inject constructor(
                             )
                     }
                 }
-                result.segments
-            }.map {
+                result.language to result.segments
+            }
+            val segments = rawSegments.map {
                 Triple((it.startSeconds * 1000).toLong(), (it.endSeconds * 1000).toLong(), it.text)
             }
-            val transcript = store.saveTranscript(jobId, result.language, segments)
+            val transcript = store.saveTranscript(jobId, transcriptionLanguage, segments)
 
             // 3. Summarize ----------------------------------------------------------------------
             report(JobStage.SUMMARIZING, "Writing summary", Bands.SUMMARY)
