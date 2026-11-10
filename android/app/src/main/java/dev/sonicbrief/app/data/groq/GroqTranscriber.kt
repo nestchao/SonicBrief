@@ -207,9 +207,13 @@ class GroqTranscriber @Inject constructor(
             extractor.selectTrack(track)
             val durationUs = format.getLong(MediaFormat.KEY_DURATION)
             val durationMs = durationUs / 1000L
-            val ranges = (0 until ((durationMs + CHUNK_MS - 1) / CHUNK_MS).toInt()).map { index ->
-                val start = index * CHUNK_MS
-                ChunkRange(index, start, minOf(start + CHUNK_MS, durationMs))
+            require(durationMs > 0L) { "The M4A audio duration is invalid." }
+            val estimatedBytesPerMs = file.length().toDouble() / durationMs.toDouble()
+            val sizeBoundMs = ((MAX_BYTES * 0.80) / estimatedBytesPerMs).toLong().coerceAtLeast(60_000L)
+            val targetChunkMs = minOf(CHUNK_MS, sizeBoundMs)
+            val ranges = (0 until ((durationMs + targetChunkMs - 1) / targetChunkMs).toInt()).map { index ->
+                val start = index * targetChunkMs
+                ChunkRange(index, start, minOf(start + targetChunkMs, durationMs))
             }
             ranges.forEach { range ->
                 val output = File(cache, "chunk-${range.index}.m4a")
@@ -242,6 +246,9 @@ class GroqTranscriber @Inject constructor(
                 val actualStartMs = (actualStartUs / 1000L).coerceAtMost(range.startMs)
                 val adjustedRange = range.copy(startMs = actualStartMs)
                 result += AudioChunk(output, "audio/mp4", output.name, range.endMs - actualStartMs, adjustedRange, true)
+            }
+            require(result.size == ranges.size && result.lastOrNull()?.range?.endMs ?: 0L >= durationMs - 1_000L) {
+                "M4A chunking did not cover the complete audio duration."
             }
         } catch (failure: Throwable) {
             result.forEach { it.file.delete() }
