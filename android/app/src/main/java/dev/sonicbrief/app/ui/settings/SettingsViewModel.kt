@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.sonicbrief.app.data.gemini.GeminiApi
 import dev.sonicbrief.app.data.gemini.GeminiModels
+import dev.sonicbrief.app.data.groq.GroqApi
 import dev.sonicbrief.app.data.media.AndroidPublicMediaDownloader
 import dev.sonicbrief.app.data.media.CookieImport
 import dev.sonicbrief.app.data.settings.AppSettings
@@ -25,6 +26,7 @@ import kotlinx.coroutines.withContext
 data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
     val keyInput: String = "",
+    val groqKeyInput: String = "",
     val modelInput: String = "",
     val availableModels: List<String> = emptyList(),
     val busy: Boolean = false,
@@ -37,6 +39,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: SettingsRepository,
     private val api: GeminiApi,
+    private val groqApi: GroqApi,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -46,6 +49,54 @@ class SettingsViewModel @Inject constructor(
             repository.observe().collect { saved ->
                 _state.update { it.copy(settings = saved, modelInput = if (it.modelInput.isBlank()) saved.model else it.modelInput) }
             }
+        }
+    }
+
+    fun onGroqKeyInputChange(value: String) = _state.update { it.copy(groqKeyInput = value, error = null, message = null) }
+    fun saveGroqKey() {
+        val key = _state.value.groqKeyInput.trim()
+        if (key.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, error = null, message = null) }
+            try {
+                groqApi.validateKey(key)
+                repository.saveGroqApiKey(key)
+                _state.update { it.copy(busy = false, groqKeyInput = "", message = "Groq key validated and saved.") }
+            } catch (failure: Throwable) {
+                _state.update { it.copy(busy = false, error = "Groq key check failed: ${failure.message}") }
+            }
+        }
+    }
+    fun testGroqKey() {
+        viewModelScope.launch {
+            val key = repository.groqApiKey() ?: return@launch _state.update { it.copy(error = "No Groq key saved.") }
+            _state.update { it.copy(busy = true, error = null, message = null) }
+            try {
+                groqApi.validateKey(key)
+                _state.update { it.copy(busy = false, message = "Groq key works.") }
+            } catch (failure: Throwable) {
+                _state.update { it.copy(busy = false, error = "Groq key check failed: ${failure.message}") }
+            }
+        }
+    }
+    fun removeGroqKey() {
+        viewModelScope.launch {
+            repository.saveGroqApiKey("")
+            _state.update { it.copy(message = "Groq key removed.") }
+        }
+    }
+    fun saveTranscriptionProvider(provider: String) {
+        if (provider !in setOf("gemini", "groq")) return
+        viewModelScope.launch {
+            repository.update { it.copy(transcriptionProvider = provider) }
+            _state.update { it.copy(message = "Transcription provider set to ${provider.replaceFirstChar(Char::uppercase)}.") }
+        }
+    }
+    fun saveGroqModel(model: String) {
+        if (model !in setOf("whisper-large-v3-turbo", "whisper-large-v3")) return
+        viewModelScope.launch {
+            repository.update { it.copy(groqModel = model) }
+            _state.update { it.copy(message = "Groq model set to $model.") }
         }
     }
 
