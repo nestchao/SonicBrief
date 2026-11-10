@@ -8,6 +8,7 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.sonicbrief.app.data.gemini.GeminiException
+import dev.sonicbrief.app.data.groq.GroqException
 import dev.sonicbrief.app.data.job.JobStore
 import dev.sonicbrief.app.data.processing.PipelineConfigurationException
 import dev.sonicbrief.app.data.processing.ProcessingPipeline
@@ -106,6 +107,18 @@ class ProcessingWorker @AssistedInject constructor(
                 Result.failure()
             } else {
                 handleFailure(jobId, localPath, rejected)
+            }
+        } catch (rejected: GroqException) {
+            if (rejected.statusCode == 401 || rejected.statusCode == 403) {
+                store.fail(jobId, "groq_key", "Groq rejected the API key. Check your Groq API key in Settings.")
+                pipeline.discardLocalSource(localPath)
+                Result.failure()
+            } else if (rejected.statusCode == 429 || rejected.statusCode >= 500) {
+                handleFailure(jobId, localPath, rejected)
+            } else {
+                store.fail(jobId, "groq_request", rejected.message ?: "Groq could not transcribe this audio.")
+                pipeline.discardLocalSource(localPath)
+                Result.failure()
             }
         } catch (failure: Throwable) {
             handleFailure(jobId, localPath, failure)
