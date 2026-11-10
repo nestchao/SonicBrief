@@ -1,12 +1,14 @@
 name: Android App
 
+concurrency:
+  group: android-${{ github.repository }}
+  cancel-in-progress: true
+
 # Standalone APK (Gemini-only, no Supabase, no pairing). Runs on demand or for
 # release tags; the APKs stay under GitHub asset limits (ABI splits + one
 # universal APK, all signed in CI).
 on:
   push:
-    branches:
-      - "feat/groq-whisper-android-issue-30"
     tags:
       - "android-v*"
   pull_request:
