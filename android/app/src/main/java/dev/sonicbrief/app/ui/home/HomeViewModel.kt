@@ -99,7 +99,7 @@ class HomeViewModel @Inject constructor(
                 _state.update { it.copy(error = "Add your Gemini API key in Settings first. It is required for summarization.") }
                 return@launch
             }
-            if (currentSettings.transcriptionProvider == "groq" && !settings.groqApiKey().let { !it.isNullOrBlank() }) {
+            if (currentSettings.transcriptionProvider == "groq" && settings.groqApiKey().isNullOrBlank()) {
                 _state.update { it.copy(error = "Add your Groq API key in Settings or switch the transcription provider to Gemini.") }
                 return@launch
             }
