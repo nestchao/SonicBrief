@@ -113,7 +113,11 @@ class ProcessingWorker @AssistedInject constructor(
                 store.fail(jobId, "groq_key", "Groq rejected the API key. Check your Groq API key in Settings.")
                 pipeline.discardLocalSource(localPath)
                 Result.failure()
-            } else if (rejected.statusCode == 429 || rejected.statusCode >= 500) {
+            } else if (rejected.statusCode == 429) {
+                store.fail(jobId, "groq_rate_limit", "Groq rate limit reached after automatic retries. Wait for your quota window to reset, then retry.")
+                pipeline.discardLocalSource(localPath)
+                Result.failure()
+            } else if (rejected.statusCode >= 500) {
                 handleFailure(jobId, localPath, rejected)
             } else {
                 store.fail(jobId, "groq_request", rejected.message ?: "Groq could not transcribe this audio.")
