@@ -1,5 +1,9 @@
 name: Android App
 
+concurrency:
+  group: android-${{ github.repository }}
+  cancel-in-progress: true
+
 # Standalone APK (Gemini-only, no Supabase, no pairing). Runs on demand or for
 # release tags; the APKs stay under GitHub asset limits (ABI splits + one
 # universal APK, all signed in CI).
@@ -7,6 +11,9 @@ on:
   push:
     tags:
       - "android-v*"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -81,10 +88,19 @@ jobs:
         shell: bash
         run: ./android/gradlew -p android assembleRelease --console=plain
 
-      - name: Build debug APKs (manual runs only, no signing secrets needed)
+      - name: Build debug APKs (branch and manual runs, no signing secrets needed)
         if: github.ref_type != 'tag'
         shell: bash
         run: ./android/gradlew -p android assembleDebug --console=plain
+
+      - name: Upload debug APKs for device testing
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonicbrief-android-groq-debug-apks
+          path: android/app/build/outputs/apk/debug/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Verify APK signatures
         if: startsWith(github.ref, 'refs/tags/android-v')

@@ -25,6 +25,10 @@ data class AppSettings(
     val summaryLanguage: String = "zh-CN",
     val hasApiKey: Boolean = false,
     val apiKeyLast4: String? = null,
+    val transcriptionProvider: String = "gemini",
+    val groqModel: String = "whisper-large-v3-turbo",
+    val hasGroqApiKey: Boolean = false,
+    val groqApiKeyLast4: String? = null,
     val cookiesImported: Boolean = false,
 )
 
@@ -78,6 +82,22 @@ class SettingsRepository @Inject constructor(
     suspend fun apiKey(): String? =
         dataStore.data.first()[API_KEY]?.let(cipher::decrypt)?.takeIf { it.isNotBlank() }
 
+    suspend fun groqApiKey(): String? =
+        dataStore.data.first()[GROQ_API_KEY]?.let(cipher::decrypt)?.takeIf { it.isNotBlank() }
+
+    suspend fun saveGroqApiKey(key: String) {
+        val trimmed = key.trim()
+        dataStore.edit {
+            if (trimmed.isEmpty()) {
+                it.remove(GROQ_API_KEY)
+                it.remove(GROQ_API_KEY_LAST4)
+            } else {
+                it[GROQ_API_KEY] = cipher.encrypt(trimmed)
+                it[GROQ_API_KEY_LAST4] = trimmed.takeLast(4)
+            }
+        }
+    }
+
     suspend fun saveApiKey(key: String) {
         val trimmed = key.trim()
         dataStore.edit {
@@ -97,6 +117,8 @@ class SettingsRepository @Inject constructor(
             it[MODEL] = next.model
             it[TRANSCRIPT_LANGUAGE] = next.transcriptLanguage
             it[SUMMARY_LANGUAGE] = next.summaryLanguage
+            it[TRANSCRIPTION_PROVIDER] = next.transcriptionProvider
+            it[GROQ_MODEL] = next.groqModel
         }
     }
 
@@ -109,6 +131,10 @@ class SettingsRepository @Inject constructor(
         transcriptLanguage = this[TRANSCRIPT_LANGUAGE] ?: "auto",
         summaryLanguage = this[SUMMARY_LANGUAGE] ?: "zh-CN",
         hasApiKey = this[API_KEY] != null,
+        transcriptionProvider = this[TRANSCRIPTION_PROVIDER] ?: "gemini",
+        groqModel = this[GROQ_MODEL] ?: "whisper-large-v3-turbo",
+        hasGroqApiKey = this[GROQ_API_KEY] != null,
+        groqApiKeyLast4 = this[GROQ_API_KEY_LAST4],
         apiKeyLast4 = this[API_KEY_LAST4],
         cookiesImported = this[COOKIES] == "1",
     )
@@ -119,6 +145,10 @@ class SettingsRepository @Inject constructor(
         val SUMMARY_LANGUAGE = stringPreferencesKey("summary_language")
         val API_KEY = stringPreferencesKey("gemini_api_key_enc")
         val API_KEY_LAST4 = stringPreferencesKey("gemini_api_key_last4")
+        val TRANSCRIPTION_PROVIDER = stringPreferencesKey("transcription_provider")
+        val GROQ_MODEL = stringPreferencesKey("groq_model")
+        val GROQ_API_KEY = stringPreferencesKey("groq_api_key_enc")
+        val GROQ_API_KEY_LAST4 = stringPreferencesKey("groq_api_key_last4")
         val COOKIES = stringPreferencesKey("cookies_imported")
     }
 }

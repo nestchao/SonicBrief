@@ -1,0 +1,57 @@
+name: Android Groq Debug APK
+
+on:
+  push:
+    branches:
+      - feat/groq-whisper-android-issue-30
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-groq-debug-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug:
+    name: Build installable debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)"
+          fi
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found (ANDROID_HOME=$ANDROID_HOME)" >&2
+            exit 1
+          fi
+          yes 2>/dev/null | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build debug APK
+        shell: bash
+        run: ./android/gradlew -p android assembleDebug --console=plain
+
+      - name: Upload APK for device testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonicbrief-android-groq-debug-apk
+          path: android/app/build/outputs/apk/debug/**/*.apk
+          if-no-files-found: error
+          retention-days: 14

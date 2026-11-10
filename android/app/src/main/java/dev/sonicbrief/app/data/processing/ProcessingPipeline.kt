@@ -4,6 +4,9 @@ import dev.sonicbrief.app.data.background.JobSourceKind
 import dev.sonicbrief.app.data.background.WorkContract.Bands
 import dev.sonicbrief.app.data.gemini.GeminiSummarizer
 import dev.sonicbrief.app.data.gemini.GeminiTranscriber
+import dev.sonicbrief.app.data.groq.GroqTranscriber
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.sonicbrief.app.data.job.JobStore
 import dev.sonicbrief.app.data.media.AndroidPublicMediaDownloader
 import dev.sonicbrief.app.data.media.AudioPreparer
@@ -33,6 +36,8 @@ class ProcessingPipeline @Inject constructor(
     private val preparer: AudioPreparer,
     private val transcriber: GeminiTranscriber,
     private val summarizer: GeminiSummarizer,
+    private val groqTranscriber: GroqTranscriber,
+    @ApplicationContext private val context: Context,
 ) {
     fun cancelActiveAcquisition() = downloader.cancelActiveAcquisition()
 
@@ -44,9 +49,15 @@ class ProcessingPipeline @Inject constructor(
     ) {
         var job = store.get(jobId) ?: throw PipelineConfigurationException("The job no longer exists.")
         if (job.status == JobStatus.CANCELLED) return
-        val apiKey = settings.apiKey()
-            ?: throw PipelineConfigurationException("Add your Gemini API key in Settings before processing media.")
-        val model = job.model?.takeIf { it.isNotBlank() } ?: settings.current().model
+        val currentSettings = settings.current()
+        val geminiApiKey = settings.apiKey()
+            ?: throw PipelineConfigurationException("Add your Gemini API key in Settings. Gemini is still required for summarization.")
+        val model = job.model?.takeIf { it.isNotBlank() } ?: currentSettings.model
+        val useGroq = currentSettings.transcriptionProvider == "groq"
+        val groqApiKey = if (useGroq) settings.groqApiKey()
+            ?: throw PipelineConfigurationException("Add your Groq API key in Settings before using Groq transcription.") else null
+        val transcriptionCache = File(context.filesDir, "transcription-cache/$jobId")
+        var transcriptionCompleted = false
 
         var downloadDir: File? = null
         var prepared: PreparedAudio? = null
@@ -95,36 +106,57 @@ class ProcessingPipeline @Inject constructor(
             val audio = checkNotNull(prepared)
 
             // 2. Transcribe ---------------------------------------------------------------------
-            val result = transcriber.transcribe(
-                apiKey = apiKey,
-                model = model,
-                file = audio.file,
-                mimeType = audio.mimeType,
-                displayName = audio.displayName,
-                durationMs = audio.durationMs ?: job.durationMs,
-                languageHint = job.transcriptLanguage,
-            ) { stage, percent ->
-                when (stage) {
-                    GeminiTranscriber.Stage.UPLOADING ->
-                        report(JobStage.UPLOADING, "Uploading audio to Gemini", Bands.ACQUIRE_END + 2)
-                    GeminiTranscriber.Stage.TRANSCRIBING ->
-                        report(
-                            JobStage.TRANSCRIBING,
-                            "Transcribing with Gemini",
-                            Bands.UPLOAD_END + (Bands.TRANSCRIBE_END - Bands.UPLOAD_END) * percent / 100,
-                        )
+            val (transcriptionLanguage, rawSegments) = if (useGroq) {
+                report(JobStage.UPLOADING, "Uploading audio to Groq (your audio is sent to Groq)", Bands.ACQUIRE_END + 2)
+                val result = groqTranscriber.transcribe(
+                    apiKey = requireNotNull(groqApiKey),
+                    model = currentSettings.groqModel,
+                    file = audio.file,
+                    mimeType = audio.mimeType,
+                    displayName = audio.displayName,
+                    durationMs = audio.durationMs ?: job.durationMs,
+                    languageHint = job.transcriptLanguage,
+                    cacheDirectory = transcriptionCache,
+                ) { completed, total ->
+                    report(
+                        JobStage.TRANSCRIBING,
+                        "Transcribing with Groq · chunk $completed/$total",
+                        Bands.UPLOAD_END + (Bands.TRANSCRIBE_END - Bands.UPLOAD_END) * completed / total,
+                    )
                 }
+                result.language to result.segments
+            } else {
+                val result = transcriber.transcribe(
+                    apiKey = geminiApiKey,
+                    model = model,
+                    file = audio.file,
+                    mimeType = audio.mimeType,
+                    displayName = audio.displayName,
+                    durationMs = audio.durationMs ?: job.durationMs,
+                    languageHint = job.transcriptLanguage,
+                ) { stage, percent ->
+                    when (stage) {
+                        GeminiTranscriber.Stage.UPLOADING ->
+                            report(JobStage.UPLOADING, "Uploading audio to Gemini", Bands.ACQUIRE_END + 2)
+                        GeminiTranscriber.Stage.TRANSCRIBING ->
+                            report(
+                                JobStage.TRANSCRIBING,
+                                "Transcribing with Gemini",
+                                Bands.UPLOAD_END + (Bands.TRANSCRIBE_END - Bands.UPLOAD_END) * percent / 100,
+                            )
+                    }
+                }
+                result.language to result.segments
             }
-
-            val segments = result.segments.map {
+            val segments = rawSegments.map {
                 Triple((it.startSeconds * 1000).toLong(), (it.endSeconds * 1000).toLong(), it.text)
             }
-            val transcript = store.saveTranscript(jobId, result.language, segments)
+            val transcript = store.saveTranscript(jobId, transcriptionLanguage, segments)
 
             // 3. Summarize ----------------------------------------------------------------------
             report(JobStage.SUMMARIZING, "Writing summary", Bands.SUMMARY)
             val summaryText = summarizer.summarize(
-                apiKey = apiKey,
+                apiKey = geminiApiKey,
                 model = model,
                 transcript = transcript,
                 languageCode = job.summaryLanguage,
@@ -140,6 +172,7 @@ class ProcessingPipeline @Inject constructor(
                 instructions = job.customInstructions,
             )
 
+            transcriptionCompleted = true
             val latest = store.get(jobId) ?: job
             store.save(
                 latest.copy(
@@ -156,6 +189,7 @@ class ProcessingPipeline @Inject constructor(
         } finally {
             // Downloaded media is always disposable. Picked local files are kept (the worker removes them
             // once the job reaches a terminal state) so a transient failure can be retried.
+            if (transcriptionCompleted) transcriptionCache.deleteRecursively()
             if (kind == JobSourceKind.URL) {
                 withContext(NonCancellable) { downloadDir?.deleteRecursively() }
             }
