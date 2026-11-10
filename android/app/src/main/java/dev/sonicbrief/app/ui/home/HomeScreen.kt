@@ -3,10 +3,6 @@ package dev.sonicbrief.app.ui.home
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,6 +82,7 @@ fun HomeScreen(
     onClearFile: () -> Unit,
     onTranscriptLanguageChange: (String) -> Unit,
     onSummaryLanguageChange: (String) -> Unit,
+    onProviderChange: (dev.sonicbrief.app.domain.model.ProcessingProvider) -> Unit,
     onTemplateChange: (SummaryTemplate) -> Unit,
     onInstructionsChange: (String) -> Unit,
     onStart: () -> Unit,
@@ -156,13 +153,14 @@ fun HomeScreen(
         item {
             AnimatedVisibility(
                 visible = showOptions,
-                enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { -it / 4 },
-                exit = fadeOut(tween(120)),
+                enter = dev.sonicbrief.app.ui.theme.IosMotion.expandEnter(),
+                exit = dev.sonicbrief.app.ui.theme.IosMotion.collapseExit(),
             ) {
                 OptionsCard(
                     state = state,
                     onTranscriptLanguageChange = onTranscriptLanguageChange,
                     onSummaryLanguageChange = onSummaryLanguageChange,
+                    onProviderChange = onProviderChange,
                     onTemplateChange = onTemplateChange,
                     onInstructionsChange = onInstructionsChange,
                 )
@@ -277,9 +275,9 @@ private fun SetupCard(onOpenSettings: () -> Unit) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Add your Gemini key", style = MaterialTheme.typography.titleMedium)
+                    Text("Add your transcription key", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Stored encrypted on this phone only.",
+                        "Gemini or Groq — stored encrypted on this phone only.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -518,10 +516,42 @@ private fun OptionsCard(
     state: HomeUiState,
     onTranscriptLanguageChange: (String) -> Unit,
     onSummaryLanguageChange: (String) -> Unit,
+    onProviderChange: (dev.sonicbrief.app.domain.model.ProcessingProvider) -> Unit,
     onTemplateChange: (SummaryTemplate) -> Unit,
     onInstructionsChange: (String) -> Unit,
 ) {
     SoftCard(containerColor = MaterialTheme.colorScheme.surface) {
+        Text("Transcribe with", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(10.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ChoicePill(
+                label = "Gemini",
+                selected = state.provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GEMINI,
+                onClick = { onProviderChange(dev.sonicbrief.app.domain.model.ProcessingProvider.GEMINI) },
+            )
+            ChoicePill(
+                label = "Groq Whisper",
+                selected = state.provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ,
+                onClick = { onProviderChange(dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ) },
+            )
+        }
+        if (!state.hasKeyForProvider) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (state.provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ) {
+                    "No Groq key saved — add one in Settings to start."
+                } else {
+                    "No Gemini key saved — add one in Settings to start."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
         Text("Brief style", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(10.dp))
         FlowRow(

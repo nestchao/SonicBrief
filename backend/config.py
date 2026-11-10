@@ -50,6 +50,9 @@ GEMINI_TRANSCRIPTION_MODEL = os.getenv("GEMINI_TRANSCRIPTION_MODEL", GEMINI_MODE
 GEMINI_SUMMARY_MODEL = os.getenv("GEMINI_SUMMARY_MODEL", GEMINI_MODEL).strip()
 GEMINI_FALLBACK_LOGPROB = float(os.getenv("GEMINI_FALLBACK_LOGPROB", "-1.2"))
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "whisper-large-v3-turbo").strip()
+
 HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
 DIARIZATION_MODEL = os.getenv("DIARIZATION_MODEL", "pyannote/speaker-diarization-3.1").strip()
 

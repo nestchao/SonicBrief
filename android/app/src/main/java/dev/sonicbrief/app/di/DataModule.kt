@@ -14,6 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.sonicbrief.app.data.job.RoomResultRepository
 import dev.sonicbrief.app.data.local.JobDao
+import dev.sonicbrief.app.data.local.MIGRATION_1_2
 import dev.sonicbrief.app.data.local.SonicBriefDatabase
 import dev.sonicbrief.app.data.local.TranscriptDao
 import dev.sonicbrief.app.domain.repository.ResultRepository
@@ -25,7 +26,9 @@ object DataModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): SonicBriefDatabase =
-        Room.databaseBuilder(context, SonicBriefDatabase::class.java, "sonicbrief-mobile.db").build()
+        Room.databaseBuilder(context, SonicBriefDatabase::class.java, "sonicbrief-mobile.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideJobDao(database: SonicBriefDatabase): JobDao = database.jobDao()

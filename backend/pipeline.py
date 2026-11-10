@@ -20,6 +20,7 @@ from faster_whisper.audio import decode_audio
 import config
 import download_settings
 import gemini_settings
+import groq_settings
 import storage
 
 _MODEL_CACHE: dict[tuple[str, str, str], WhisperModel] = {}
@@ -625,6 +626,297 @@ Escape every double quote and backslash inside spoken text as required by JSON. 
     }
 
 
+GROQ_API_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+GROQ_TARGET_CHUNK_SECONDS = 20 * 60
+GROQ_CHUNK_OVERLAP_SECONDS = 2.0
+GROQ_TIMESTAMP_TOLERANCE = 5.0
+GROQ_MAX_ATTEMPTS = 4
+_GROQ_RETRY_DELAYS = (2.0, 5.0, 15.0)
+
+_GROQ_LANGUAGE_NAMES = {
+    "english": "en", "chinese": "zh", "mandarin": "zh", "cantonese": "yue",
+    "malay": "ms", "indonesian": "id", "japanese": "ja", "korean": "ko",
+    "spanish": "es", "french": "fr", "german": "de", "portuguese": "pt",
+    "russian": "ru", "arabic": "ar", "hindi": "hi", "thai": "th",
+    "vietnamese": "vi", "tamil": "ta",
+}
+
+
+def _normalize_groq_language(raw: Any) -> str:
+    key = str(raw or "").strip().lower()
+    if not key or key == "und" or (" " not in key and len(key) <= 3):
+        return key.split("-")[0] if key else "und"
+    return _GROQ_LANGUAGE_NAMES.get(key.split(" ")[0].split("(")[0].strip(), key)
+
+
+def plan_groq_chunks(duration: float | None, chunk_seconds: float = GROQ_TARGET_CHUNK_SECONDS) -> list[tuple[float, float]]:
+    """Time windows with a small overlap so words are not cut at boundaries."""
+    if not duration or duration <= chunk_seconds:
+        return []
+    windows: list[tuple[float, float]] = []
+    start = 0.0
+    while start < duration:
+        end = min(start + chunk_seconds, duration)
+        tail = duration - end
+        if windows and 0 < tail < GROQ_CHUNK_OVERLAP_SECONDS * 2:
+            prev_start, _ = windows.pop()
+            windows.append((prev_start, duration))
+            break
+        windows.append((start, end))
+        if end >= duration:
+            break
+        start = end - GROQ_CHUNK_OVERLAP_SECONDS
+    return windows
+
+
+def _groq_error_message(status: int, body: str) -> str:
+    detail = body.strip()[:300]
+    try:
+        payload = json.loads(body)
+        detail = str(payload.get("error", {}).get("message", detail))[:300]
+    except (ValueError, AttributeError):
+        pass
+    if status in (401, 403):
+        return "Groq rejected the API key. Check the key in Settings — it may be wrong, revoked, or out of credit."
+    if status == 404:
+        return "Groq could not find the model. Use whisper-large-v3-turbo or whisper-large-v3."
+    if status == 413:
+        return "The audio upload was too large for Groq. Try a shorter clip or a smaller file."
+    if status == 422:
+        return f"Groq could not process this audio ({detail or 'unsupported media'})."
+    if status == 429:
+        return "Groq is rate-limiting this key right now. Wait a minute and try again."
+    if 500 <= status <= 599:
+        return "Groq had a server problem. Try again later."
+    return f"Groq transcription failed (HTTP {status}: {detail or 'unknown error'})."
+
+
+def _post_groq_chunk(chunk_path: Path, model: str, language: str, api_key: str) -> dict[str, Any]:
+    import httpx
+
+    suffix = chunk_path.suffix.lower()
+    mime = {
+        ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4",
+        ".wav": "audio/wav", ".flac": "audio/flac", ".ogg": "audio/ogg",
+        ".opus": "audio/opus", ".webm": "audio/webm",
+    }.get(suffix, "application/octet-stream")
+    data: dict[str, Any] = {
+        "model": model,
+        "response_format": "verbose_json",
+        "timestamp_granularities[]": "segment",
+    }
+    if language and language != "auto":
+        data["language"] = language.lower().split("-")[0]
+    last_error: Exception | None = None
+    with chunk_path.open("rb") as handle:
+        content = handle.read()
+    for attempt in range(GROQ_MAX_ATTEMPTS):
+        check = None
+        try:
+            with httpx.Client(timeout=600.0) as client:
+                response = client.post(
+                    GROQ_API_URL,
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    data=data,
+                    files={"file": (chunk_path.name, content, mime)},
+                )
+            if response.status_code in (401, 403, 404, 413, 422):
+                raise RuntimeError(_groq_error_message(response.status_code, response.text))
+            if response.status_code == 429 or 500 <= response.status_code <= 599:
+                retry_after = response.headers.get("retry-after")
+                wait = _GROQ_RETRY_DELAYS[min(attempt, len(_GROQ_RETRY_DELAYS) - 1)]
+                try:
+                    if retry_after is not None:
+                        wait = max(1.0, min(float(retry_after), 60.0))
+                except ValueError:
+                    pass
+                last_error = RuntimeError(_groq_error_message(response.status_code, response.text))
+                if attempt < GROQ_MAX_ATTEMPTS - 1:
+                    time.sleep(wait)
+                    continue
+                raise last_error
+            response.raise_for_status()
+            parsed = response.json()
+            if not isinstance(parsed, dict):
+                raise RuntimeError("Groq returned an invalid transcript payload.")
+            return parsed
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            last_error = exc
+            if attempt < GROQ_MAX_ATTEMPTS - 1:
+                time.sleep(_GROQ_RETRY_DELAYS[min(attempt, len(_GROQ_RETRY_DELAYS) - 1)])
+    raise RuntimeError(f"Could not reach Groq: {last_error}") from last_error
+
+
+def validate_groq_segments(
+    segments: list[dict[str, Any]],
+    chunk_start: float,
+    chunk_length: float,
+    audio_duration: float | None,
+) -> list[dict[str, Any]]:
+    """Reject structurally invalid timestamps so a corrupt chunk is never silently kept."""
+    for position, item in enumerate(segments):
+        label = f"section starting at {format_duration(chunk_start)}, segment {position + 1}"
+        start = float(item.get("start", 0))
+        end = float(item.get("end", start))
+        if start != start or end != end:  # NaN
+            raise ValueError(f"Groq returned a non-numeric timestamp ({label}).")
+        if start < 0:
+            raise ValueError(f"Groq returned a negative timestamp ({label}).")
+        if not end > start:
+            raise ValueError(f"Groq returned an empty or reversed segment ({label}).")
+        if start > chunk_length + GROQ_TIMESTAMP_TOLERANCE:
+            raise ValueError(f"Groq returned a timestamp beyond the audio it was given ({label}).")
+        if position and start + 0.001 < float(segments[position - 1].get("start", 0)):
+            raise ValueError(f"Groq returned out-of-order segments ({label}).")
+        if audio_duration and chunk_start + start > audio_duration + GROQ_TIMESTAMP_TOLERANCE:
+            raise ValueError(f"Groq returned a timestamp beyond the audio duration ({label}).")
+    return segments
+
+
+def merge_groq_chunks(
+    segments: list[dict[str, Any]],
+    chunk_start: float,
+    chunk_length: float,
+    first: bool,
+) -> list[dict[str, Any]]:
+    """Drop the overlapped head of follow-up chunks, then shift onto the global timeline once."""
+    overlap = 0.0 if first else GROQ_CHUNK_OVERLAP_SECONDS
+    merged: list[dict[str, Any]] = []
+    for item in segments:
+        start = float(item["start"])
+        end = float(item["end"])
+        if start < overlap - 0.05 or start > chunk_length + GROQ_TIMESTAMP_TOLERANCE:
+            continue
+        merged.append({
+            "start": round(chunk_start + min(start, chunk_length), 3),
+            "end": round(chunk_start + min(end, chunk_length), 3),
+            "text": str(item.get("text", "")).strip(),
+            "speaker": None,
+        })
+    return merged
+
+
+def prepare_groq_chunks(path: Path, directory: Path) -> list[tuple[Path, float]]:
+    """Split audio into upload-friendly chunks; every file is verified under the byte budget."""
+    duration = probe_duration(path)
+    if duration is None or (duration <= GROQ_TARGET_CHUNK_SECONDS and path.stat().st_size <= GROQ_MAX_UPLOAD_BYTES):
+        return [(path, 0.0)]
+    windows = plan_groq_chunks(duration) or [(0.0, duration)]
+    chunks: list[tuple[Path, float]] = []
+    counter = 0
+
+    def encode(window_start: float, window_end: float) -> None:
+        nonlocal counter
+        length = window_end - window_start
+        attempts = [
+            ["-c:a", "libmp3lame", "-b:a", "64k"],
+            ["-c:a", "mp3", "-b:a", "64k"],
+            ["-c:a", "aac", "-b:a", "64k", "-f", "mp4"],
+        ]
+        encoded = False
+        target = directory / "groq-chunk-000.mp3"
+        for codec_args in attempts:
+            suffix = ".m4a" if "aac" in codec_args else ".mp3"
+            counter += 1
+            candidate = directory / f"groq-chunk-{counter:03d}{suffix}"
+            result = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                 "-i", str(path), "-ss", f"{window_start:.3f}", "-t", f"{length:.3f}",
+                 "-vn", "-ac", "1", "-ar", "16000", *codec_args, str(candidate)],
+                capture_output=True, text=True, check=False,
+            )
+            if result.returncode == 0 and candidate.stat().st_size > 0:
+                target = candidate
+                encoded = True
+                break
+            candidate.unlink(missing_ok=True)
+        if not encoded:
+            raise RuntimeError("FFmpeg could not encode this audio for Groq upload.")
+        if target.stat().st_size <= GROQ_MAX_UPLOAD_BYTES or length <= 15:
+            chunks.append((target, window_start))
+            return
+        target.unlink(missing_ok=True)
+        mid = window_start + length / 2
+        encode(window_start, min(mid + GROQ_CHUNK_OVERLAP_SECONDS, window_end))
+        encode(mid - GROQ_CHUNK_OVERLAP_SECONDS, window_end)
+
+    for start, end in windows:
+        encode(start, end)
+    chunks.sort(key=lambda item: item[1])
+    return chunks
+
+
+def groq_transcribe(path: Path, language: str, model: str, progress_callback: Any = None) -> dict[str, Any]:
+    if not groq_settings.is_configured():
+        raise RuntimeError("Add your Groq API key in Settings to use Groq transcription.")
+    selected_model = groq_settings.normalize_groq_model_id(model or groq_settings.get_groq_model())
+    api_key = groq_settings.get_groq_api_key()
+    work_dir = path.parent / "groq-chunks"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    chunks = prepare_groq_chunks(path, work_dir)
+    multi = len(chunks) > 1 or chunks[0][0] != path
+
+    def report(position: int, detail: str) -> None:
+        if progress_callback:
+            processed = chunks[position][1] if multi else 0.0
+            progress_callback("transcribing", round(position / len(chunks) * 100), processed, detail)
+
+    merged: list[dict[str, Any]] = []
+    detected_language = "und"
+    logprobs: list[float] = []
+    audio_duration = probe_duration(path)
+    try:
+        for position, (chunk_path, offset) in enumerate(chunks):
+            report(position, f"Sending section {position + 1} of {len(chunks)} to Groq…")
+            try:
+                payload = _post_groq_chunk(chunk_path, selected_model, language, api_key)
+            except Exception as exc:
+                label = f"section {position + 1} ({format_duration(offset)})"
+                raise RuntimeError(f"Groq transcription failed for {label}: {exc}") from exc
+            raw_segments = payload.get("segments", [])
+            if not isinstance(raw_segments, list):
+                raise RuntimeError("Groq returned transcript segments in an invalid format.")
+            cleaned = [{
+                "start": round(float(item.get("start", 0)), 3),
+                "end": round(float(item.get("end", item.get("start", 0))), 3),
+                "text": str(item.get("text", "")).strip(),
+            } for item in raw_segments if isinstance(item, dict) and str(item.get("text", "")).strip()]
+            chunk_length = float(payload.get("duration") or 0) or None
+            if chunk_length is None and cleaned:
+                chunk_length = max(item["end"] for item in cleaned)
+            validate_groq_segments(cleaned, offset, chunk_length or 0.0, audio_duration)
+            if multi:
+                merged.extend(merge_groq_chunk(cleaned, offset, chunk_length or 0.0, first=position == 0))
+            else:
+                merged.extend({
+                    "start": item["start"], "end": item["end"], "text": item["text"], "speaker": None,
+                } for item in cleaned)
+                detected_language = _normalize_groq_language(payload.get("language", language))
+            for item in raw_segments:
+                if isinstance(item, dict) and isinstance(item.get("avg_logprob"), (int, float)):
+                    logprobs.append(float(item["avg_logprob"]))
+            if detected_language == "und":
+                detected_language = _normalize_groq_language(payload.get("language", language))
+            report(position + 1 if position + 1 < len(chunks) else position, f"Groq transcribed section {position + 1} of {len(chunks)}.")
+    finally:
+        for chunk_path, _ in chunks:
+            if chunk_path != path:
+                chunk_path.unlink(missing_ok=True)
+    if not merged:
+        raise RuntimeError("Groq returned no usable transcript segments.")
+    average_logprob = sum(logprobs) / len(logprobs) if logprobs else -99.0
+    return {
+        "segments": merged,
+        "language": detected_language,
+        "duration": max(item["end"] for item in merged),
+        "average_logprob": average_logprob,
+        "engine": f"groq/{selected_model}",
+    }
+
+
 def _get_diarization_pipeline() -> Any:
     global _DIARIZATION_PIPELINE
     if not config.HF_TOKEN:
@@ -819,6 +1111,8 @@ def run_job(
     summary_custom_instructions: str = "",
     generate_summary: bool = False,
     allow_gemini_fallback: bool = False,
+    cloud_provider: str = "local",
+    groq_model: str = "",
 ) -> None:
     try:
         check_cancelled(job_id)
@@ -859,7 +1153,12 @@ def run_job(
             normalized_path = temp_dir / "normalized.wav"
             check_cancelled(job_id)
             normalize_audio(media_path, normalized_path)
-            storage.update_job(job_id, progress=25, stage="transcribe", stage_detail="Preparing Local Whisper…", stage_progress=0, processed_duration=0)
+            if cloud_provider == "groq":
+                storage.update_job(job_id, progress=25, stage="transcribe", stage_detail="Preparing audio for Groq…", stage_progress=0, processed_duration=0)
+            elif cloud_provider == "gemini":
+                storage.update_job(job_id, progress=25, stage="transcribe", stage_detail="Uploading audio to Gemini…", stage_progress=0, processed_duration=0)
+            else:
+                storage.update_job(job_id, progress=25, stage="transcribe", stage_detail="Preparing Local Whisper…", stage_progress=0, processed_duration=0)
 
             def report_transcription(stage: str, stage_progress: int, processed: float, detail: str) -> None:
                 overall = 25 + round((max(0, min(stage_progress, 100)) / 100) * 43)
@@ -872,27 +1171,35 @@ def run_job(
                     processed_duration=processed,
                 )
 
-            try:
+            if cloud_provider in ("groq", "gemini"):
+                # Cloud-only jobs fail honestly: there is no second provider to fall back to.
                 check_cancelled(job_id)
-                result = local_transcribe(normalized_path, model_name, language, report_transcription)
-            except Exception as local_error:
-                if not allow_gemini_fallback:
-                    raise RuntimeError(f"Local transcription failed: {local_error}") from local_error
-                if not gemini_settings.is_configured():
-                    raise RuntimeError(
-                        f"Local transcription failed and optional Gemini fallback is not configured: {local_error}"
-                    ) from local_error
-                storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
-                result = gemini_transcribe(normalized_path, language)
+                if cloud_provider == "groq":
+                    result = groq_transcribe(normalized_path, language, groq_model, report_transcription)
+                else:
+                    result = gemini_transcribe(normalized_path, language)
             else:
-                if transcript_needs_fallback(result):
-                    if allow_gemini_fallback and gemini_settings.is_configured():
-                        storage.add_warning(job_id, "Local transcription quality was low, so Gemini fallback was used.")
-                        result = gemini_transcribe(normalized_path, language)
-                    elif allow_gemini_fallback:
-                        storage.add_warning(job_id, "Local transcription confidence was low; optional Gemini fallback is not configured.")
-                    else:
-                        storage.add_warning(job_id, "Local transcription confidence was low; cloud fallback was not requested.")
+                try:
+                    check_cancelled(job_id)
+                    result = local_transcribe(normalized_path, model_name, language, report_transcription)
+                except Exception as local_error:
+                    if not allow_gemini_fallback:
+                        raise RuntimeError(f"Local transcription failed: {local_error}") from local_error
+                    if not gemini_settings.is_configured():
+                        raise RuntimeError(
+                            f"Local transcription failed and optional Gemini fallback is not configured: {local_error}"
+                        ) from local_error
+                    storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
+                    result = gemini_transcribe(normalized_path, language)
+                else:
+                    if transcript_needs_fallback(result):
+                        if allow_gemini_fallback and gemini_settings.is_configured():
+                            storage.add_warning(job_id, "Local transcription quality was low, so Gemini fallback was used.")
+                            result = gemini_transcribe(normalized_path, language)
+                        elif allow_gemini_fallback:
+                            storage.add_warning(job_id, "Local transcription confidence was low; optional Gemini fallback is not configured.")
+                        else:
+                            storage.add_warning(job_id, "Local transcription confidence was low; cloud fallback was not requested.")
 
             check_cancelled(job_id)
             segments = result["segments"]

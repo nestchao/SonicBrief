@@ -8,6 +8,8 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.sonicbrief.app.data.gemini.GeminiException
+import dev.sonicbrief.app.data.groq.GroqErrors
+import dev.sonicbrief.app.data.groq.GroqException
 import dev.sonicbrief.app.data.job.JobStore
 import dev.sonicbrief.app.data.processing.PipelineConfigurationException
 import dev.sonicbrief.app.data.processing.ProcessingPipeline
@@ -102,6 +104,14 @@ class ProcessingWorker @AssistedInject constructor(
                     jobId, "gemini_key",
                     "Gemini rejected the API key or the model isn't available to it. Check the key and model in Settings.",
                 )
+                pipeline.discardLocalSource(localPath)
+                Result.failure()
+            } else {
+                handleFailure(jobId, localPath, rejected)
+            }
+        } catch (rejected: GroqException) {
+            if (GroqErrors.isKeyProblem(rejected)) {
+                store.fail(jobId, "groq_key", GroqErrors.userMessage(rejected))
                 pipeline.discardLocalSource(localPath)
                 Result.failure()
             } else {

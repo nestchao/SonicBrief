@@ -7,6 +7,7 @@ import { Check, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, Settings, X } fr
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExtensionInstall } from "@/app/extension-install";
+import { GroqSettings } from "@/app/groq-settings";
 import { DownloadSettings } from "@/app/download-settings";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,9 +33,10 @@ type GeminiModelsResponse = {
 
 type Props = {
   onConfiguredChange?: (configured: boolean) => void;
+  onGroqConfiguredChange?: (configured: boolean) => void;
 };
 
-export function GeminiSettings({ onConfiguredChange }: Props) {
+export function GeminiSettings({ onConfiguredChange, onGroqConfiguredChange }: Props) {
   const [open, setOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [configured, setConfigured] = useState(false);
@@ -239,7 +241,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
               <div>
                 <p className="sonic-result-eyebrow"><KeyRound />SETTINGS</p>
                 <h2 id="gemini-settings-title">Settings</h2>
-                <p>Connect your Gemini API key, and install the Chrome extension that sends videos to SonicBrief.</p>
+                <p>Connect your Gemini or Groq API key, and install the Chrome extension that sends videos to SonicBrief.</p>
               </div>
               <button type="button" className="sonic-settings-close" aria-label="Close settings" onClick={() => setOpen(false)}><X /></button>
             </div>
@@ -247,6 +249,7 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
             <Tabs defaultValue="gemini" className="sonic-settings-tabs-root">
               <TabsList className="sonic-settings-tabs">
                 <TabsTrigger value="gemini">Gemini</TabsTrigger>
+                <TabsTrigger value="groq">Groq</TabsTrigger>
                 <TabsTrigger value="extension">Browser extension</TabsTrigger>
                 <TabsTrigger value="downloads">Downloads</TabsTrigger>
               </TabsList>
@@ -360,6 +363,10 @@ export function GeminiSettings({ onConfiguredChange }: Props) {
                   </Button>
                 </div>
               </div>
+              </TabsContent>
+
+              <TabsContent value="groq" className="sonic-settings-body">
+                <GroqSettings onConfiguredChange={onGroqConfiguredChange} />
               </TabsContent>
 
               <TabsContent value="extension" className="sonic-settings-body">

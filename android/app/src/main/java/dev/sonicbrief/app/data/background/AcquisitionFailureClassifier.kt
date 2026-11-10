@@ -33,7 +33,9 @@ class AcquisitionFailureClassifier @Inject constructor() {
                 message.contains("http error 429") ||
                 message.contains("429: too many requests") ||
                 message.contains("too many requests") ||
-                message.contains("rate limit") ->
+                message.contains("rate limit") ||
+                message.contains("rate_limit") ||
+                message.contains("rate-limit") ->
                 AcquisitionFailureKind.RATE_LIMIT
 
             message.contains("network unreachable") ||
@@ -57,6 +59,8 @@ class AcquisitionFailureClassifier @Inject constructor() {
                 AcquisitionFailureKind.AUTH_SESSION_REQUIRED
 
             message.contains("gemini") ||
+                message.contains("groq") ||
+                message.contains("whisper") ||
                 message.contains("processing failed") ||
                 message.contains("transcription") ||
                 message.contains("summar") ->
@@ -84,7 +88,7 @@ class AcquisitionFailureClassifier @Inject constructor() {
         AcquisitionFailureKind.BOT_OR_AUTH_CHALLENGE ->
             "The platform asked for sign-in or bot verification on this device. Try again later, or import a cookies.txt from a browser where you are signed in (Settings → Cookies), or use a local file instead."
         AcquisitionFailureKind.RATE_LIMIT ->
-            "The provider (the media site or Gemini) is rate-limiting requests. SonicBrief retries with backoff; if it continues, try again later."
+            "The provider (the media site or the transcription service) is rate-limiting requests. SonicBrief retries with backoff; if it continues, try again later."
         AcquisitionFailureKind.TRANSIENT_NETWORK ->
             "Network access was interrupted. SonicBrief can retry when connectivity is available."
         AcquisitionFailureKind.UNSUPPORTED_SOURCE ->

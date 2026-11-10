@@ -8,6 +8,7 @@ import dev.sonicbrief.app.data.background.JobScheduler
 import dev.sonicbrief.app.data.job.JobStore
 import dev.sonicbrief.app.data.settings.SettingsRepository
 import dev.sonicbrief.app.domain.model.Job
+import dev.sonicbrief.app.domain.model.ProcessingProvider
 import dev.sonicbrief.app.domain.model.SourceType
 import dev.sonicbrief.app.ui.result.SummaryTemplate
 import dev.sonicbrief.app.ui.result.instructions
@@ -26,6 +27,9 @@ data class HomeUiState(
     val url: String = "",
     val pendingFileUri: Uri? = null,
     val pendingFileName: String? = null,
+    val provider: ProcessingProvider = ProcessingProvider.GEMINI,
+    val hasGeminiKey: Boolean = false,
+    val hasGroqKey: Boolean = false,
     val transcriptLanguage: String = "auto",
     val summaryLanguage: String = "zh-CN",
     val template: SummaryTemplate = SummaryTemplate.STANDARD,
@@ -33,7 +37,9 @@ data class HomeUiState(
     val submitting: Boolean = false,
     val error: String? = null,
     val openJobId: UUID? = null,
-)
+) {
+    val hasKeyForProvider: Boolean get() = if (provider == ProcessingProvider.GROQ) hasGroqKey else hasGeminiKey
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -48,17 +54,39 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val hasApiKey: StateFlow<Boolean> = settings.observe()
-        .map { it.hasApiKey }
+        .map { if (it.transcriptionProvider == ProcessingProvider.GROQ) it.hasGroqKey else it.hasApiKey }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
         viewModelScope.launch {
             val saved = settings.current()
             _state.update {
-                it.copy(transcriptLanguage = saved.transcriptLanguage, summaryLanguage = saved.summaryLanguage)
+                it.copy(
+                    transcriptLanguage = saved.transcriptLanguage,
+                    summaryLanguage = saved.summaryLanguage,
+                    provider = saved.transcriptionProvider,
+                    hasGeminiKey = saved.hasApiKey,
+                    hasGroqKey = saved.hasGroqKey,
+                )
+            }
+            launch {
+                settings.observe().collect { current ->
+                    _state.update {
+                        it.copy(
+                            provider = current.transcriptionProvider,
+                            hasGeminiKey = current.hasApiKey,
+                            hasGroqKey = current.hasGroqKey,
+                        )
+                    }
+                }
             }
             scheduler.reconcile()
         }
+    }
+
+    fun onProviderChange(provider: ProcessingProvider) {
+        _state.update { it.copy(provider = provider, error = null) }
+        viewModelScope.launch { settings.update { it.copy(transcriptionProvider = provider) } }
     }
 
     fun onUrlChange(value: String) = _state.update { it.copy(url = value, error = null) }
@@ -94,16 +122,26 @@ class HomeViewModel @Inject constructor(
         val current = _state.value
         if (current.submitting) return
         viewModelScope.launch {
-            if (!settings.current().hasApiKey) {
-                _state.update { it.copy(error = "Add your Gemini API key in Settings first.") }
+            val saved = settings.current()
+            val ready = if (current.provider == ProcessingProvider.GROQ) saved.hasGroqKey else saved.hasApiKey
+            if (!ready) {
+                val which = if (current.provider == ProcessingProvider.GROQ) "Groq" else "Gemini"
+                _state.update { it.copy(error = "Add your $which API key in Settings first.") }
                 return@launch
             }
             _state.update { it.copy(submitting = true, error = null) }
-            settings.update { it.copy(transcriptLanguage = current.transcriptLanguage, summaryLanguage = current.summaryLanguage) }
+            settings.update {
+                it.copy(
+                    transcriptLanguage = current.transcriptLanguage,
+                    summaryLanguage = current.summaryLanguage,
+                    transcriptionProvider = current.provider,
+                )
+            }
             val options = JobScheduler.Options(
                 transcriptLanguage = current.transcriptLanguage,
                 summaryLanguage = current.summaryLanguage,
                 instructions = current.template.instructions(current.instructions),
+                provider = current.provider,
             )
             val result = when {
                 current.pendingFileUri != null -> scheduler.submitFile(current.pendingFileUri, options)

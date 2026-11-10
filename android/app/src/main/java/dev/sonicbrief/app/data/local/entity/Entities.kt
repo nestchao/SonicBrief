@@ -27,6 +27,7 @@ data class JobEntity(
     val transcriptLanguage: String,
     val summaryLanguage: String,
     val customInstructions: String?,
+    val provider: String = "gemini",
     val model: String?,
     val errorCode: String?,
     val errorMessage: String?,

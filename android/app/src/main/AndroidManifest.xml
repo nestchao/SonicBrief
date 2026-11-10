@@ -9,6 +9,7 @@
     <application
         android:name=".SonicBriefApplication"
         android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:label="SonicBrief"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

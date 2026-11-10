@@ -73,6 +73,13 @@ fun SettingsScreen(
     onRemoveKey: () -> Unit,
     onModelInputChange: (String) -> Unit,
     onSaveModel: (String) -> Unit,
+    onSelectProvider: (dev.sonicbrief.app.domain.model.ProcessingProvider) -> Unit,
+    onGroqKeyInputChange: (String) -> Unit,
+    onSaveGroqKey: () -> Unit,
+    onTestGroqKey: () -> Unit,
+    onRemoveGroqKey: () -> Unit,
+    onGroqModelInputChange: (String) -> Unit,
+    onSaveGroqModel: (String) -> Unit,
     onImportCookies: (android.net.Uri) -> Unit,
     onRemoveCookies: () -> Unit,
 ) {
@@ -102,29 +109,65 @@ fun SettingsScreen(
         }
 
         item {
-            SectionLabel("Gemini API key")
+            SectionLabel("Transcription provider")
         }
         item {
-            KeyCard(
+            ProviderCard(
                 state = state,
-                keyVisible = keyVisible,
-                onToggleVisible = { keyVisible = !keyVisible },
-                onKeyInputChange = onKeyInputChange,
-                onSaveKey = onSaveKey,
-                onTestKey = onTestKey,
-                onRemoveKey = onRemoveKey,
+                onSelectProvider = onSelectProvider,
             )
         }
 
-        item {
-            SectionLabel("Model")
-        }
-        item {
-            ModelCard(
-                state = state,
-                onModelInputChange = onModelInputChange,
-                onSaveModel = onSaveModel,
-            )
+        if (state.settings.transcriptionProvider == dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ) {
+            item {
+                SectionLabel("Groq API key")
+            }
+            item {
+                GroqKeyCard(
+                    state = state,
+                    onGroqKeyInputChange = onGroqKeyInputChange,
+                    onSaveGroqKey = onSaveGroqKey,
+                    onTestGroqKey = onTestGroqKey,
+                    onRemoveGroqKey = onRemoveGroqKey,
+                )
+            }
+
+            item {
+                SectionLabel("Groq model")
+            }
+            item {
+                GroqModelCard(
+                    state = state,
+                    onGroqModelInputChange = onGroqModelInputChange,
+                    onSaveGroqModel = onSaveGroqModel,
+                )
+            }
+        } else {
+            item {
+                SectionLabel("Gemini API key")
+            }
+            item {
+                KeyCard(
+                    state = state,
+                    keyVisible = keyVisible,
+                    onToggleVisible = { keyVisible = !keyVisible },
+                    onKeyInputChange = onKeyInputChange,
+                    onSaveKey = onSaveKey,
+                    onTestKey = onTestKey,
+                    onRemoveKey = onRemoveKey,
+                )
+            }
+
+            item {
+                SectionLabel("Model")
+            }
+            item {
+                ModelCard(
+                    state = state,
+                    onModelInputChange = onModelInputChange,
+                    onSaveModel = onSaveModel,
+                )
+            }
         }
 
         item {
@@ -251,6 +294,224 @@ private fun KeyCard(
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProviderCard(
+    state: SettingsUiState,
+    onSelectProvider: (dev.sonicbrief.app.domain.model.ProcessingProvider) -> Unit,
+) {
+    val provider = state.settings.transcriptionProvider
+    SoftCard {
+        Text(
+            "Choose which service transcribes audio. Summaries always use Gemini.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ChoicePill(
+                label = "Gemini",
+                selected = provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GEMINI,
+                onClick = { onSelectProvider(dev.sonicbrief.app.domain.model.ProcessingProvider.GEMINI) },
+            )
+            ChoicePill(
+                label = "Groq Whisper",
+                selected = provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ,
+                onClick = { onSelectProvider(dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ) },
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Filled.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ) {
+                    "Groq key: " + if (state.settings.hasGroqKey) "saved (••••${state.settings.groqKeyLast4 ?: ""})" else "not set"
+                } else {
+                    "Gemini key: " + if (state.settings.hasApiKey) "saved" else "not set"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GroqKeyCard(
+    state: SettingsUiState,
+    onGroqKeyInputChange: (String) -> Unit,
+    onSaveGroqKey: () -> Unit,
+    onTestGroqKey: () -> Unit,
+    onRemoveGroqKey: () -> Unit,
+) {
+    var keyVisible by remember { mutableStateOf(false) }
+    SoftCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    SonicIcons.Key,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Groq API key", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    if (state.settings.hasGroqKey) "Ends in ${state.settings.groqKeyLast4 ?: "••••"}"
+                    else "Not set yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (state.settings.hasGroqKey) {
+                StatusPill("Active", PillTone.Success)
+            } else {
+                StatusPill("Missing", PillTone.Error)
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Create a key at console.groq.com, then paste it here. It stays encrypted on this phone. Audio you transcribe with Groq is uploaded to Groq.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(14.dp))
+        SonicTextField(
+            value = state.groqKeyInput,
+            onValueChange = onGroqKeyInputChange,
+            label = if (state.settings.hasGroqKey) "Replace key" else "Paste API key",
+            placeholder = "gsk_…",
+            singleLine = true,
+            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                TextButton(onClick = { keyVisible = !keyVisible }) {
+                    Text(
+                        if (keyVisible) "Hide" else "Show",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            },
+        )
+
+        Spacer(Modifier.height(12.dp))
+        PrimaryButton(
+            text = if (state.groqBusy) "Checking…" else "Validate & save",
+            onClick = onSaveGroqKey,
+            enabled = !state.groqBusy && state.groqKeyInput.isNotBlank(),
+            loading = state.groqBusy,
+            icon = Icons.Filled.Check,
+        )
+
+        if (state.settings.hasGroqKey) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SecondaryButton(
+                    text = "Test",
+                    onClick = onTestGroqKey,
+                    enabled = !state.groqBusy,
+                    icon = SonicIcons.Bolt,
+                    fill = false,
+                    modifier = Modifier.weight(1f),
+                )
+                SecondaryButton(
+                    text = "Remove",
+                    onClick = onRemoveGroqKey,
+                    enabled = !state.groqBusy,
+                    icon = Icons.Filled.Delete,
+                    fill = false,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GroqModelCard(
+    state: SettingsUiState,
+    onGroqModelInputChange: (String) -> Unit,
+    onSaveGroqModel: (String) -> Unit,
+) {
+    val options = state.groqAvailableModels.ifEmpty { dev.sonicbrief.app.data.groq.GroqModels.ALL }
+    SoftCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    SonicIcons.Sparkle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Groq Whisper model", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    state.settings.groqModel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Turbo is faster and cheaper; large-v3 is the quality alternative.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            options.forEach { name ->
+                ChoicePill(
+                    label = name,
+                    selected = state.groqModelInput == name,
+                    onClick = { onGroqModelInputChange(name) },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        SecondaryButton(
+            text = "Use this model",
+            onClick = { onSaveGroqModel(state.groqModelInput) },
+            icon = Icons.Filled.Check,
+        )
     }
 }
 
@@ -409,7 +670,7 @@ private fun AboutCard() {
         SoftDivider()
         Spacer(Modifier.height(14.dp))
         Text(
-            "Media is downloaded with yt-dlp, uploaded to Gemini with your own key, transcribed, and then deleted from Google's Files API. Nothing is sent anywhere else.",
+            "Media is downloaded with yt-dlp, transcribed with your own provider key (Gemini or Groq), and removed from the provider afterwards. Nothing is sent anywhere else.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

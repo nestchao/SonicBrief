@@ -31,8 +31,9 @@ type Job = {
 };
 type Health = {
   ok: boolean; cuda_available: boolean; device: string;
-  gemini_configured: boolean; diarization_configured: boolean;
+  gemini_configured: boolean; groq_configured?: boolean; diarization_configured: boolean;
 };
+type CloudProvider = "local" | "gemini" | "groq";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:7860";
 const stages = [
@@ -184,7 +185,7 @@ function SummaryMarkdown({ content }: { content: string }) {
 
 export function SonicBriefApp() {
   const [source, setSource] = useState<InputSource>("url");
-  const [url, setUrl] = useState(""); const [files, setFiles] = useState<File[]>([]); const [language, setLanguage] = useState("auto"); const [model, setModel] = useState("turbo"); const [diarize, setDiarize] = useState(false); const [diarizeTouched, setDiarizeTouched] = useState(false);
+  const [url, setUrl] = useState(""); const [files, setFiles] = useState<File[]>([]); const [language, setLanguage] = useState("auto"); const [model, setModel] = useState("turbo"); const [cloudProvider, setCloudProvider] = useState<CloudProvider>("local"); const [groqModel, setGroqModel] = useState("whisper-large-v3-turbo"); const [diarize, setDiarize] = useState(false); const [diarizeTouched, setDiarizeTouched] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]); const [activeJob, setActiveJob] = useState<Job | null>(null); const [health, setHealth] = useState<Health | null>(null); const [loading, setLoading] = useState(false); const [message, setMessage] = useState<string | null>(null); const [messageType, setMessageType] = useState<"error" | "success">("error"); const [transcriptCopied, setTranscriptCopied] = useState(false); const [dragging, setDragging] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -275,10 +276,12 @@ export function SonicBriefApp() {
     const urls = source === "upload" ? [] : [...new Set(url.split(/\r?\n/).map(extractUrl).filter(Boolean))].slice(0, 20);
     if (source === "url" && !urls.length) { setMessage("Paste at least one valid media URL."); return; }
     if (source === "url" && url.split(/\r?\n/).map(extractUrl).filter(Boolean).length > 20) setMessage("A batch can contain at most 20 URLs; extra URLs were not added.");
+    if (cloudProvider === "groq" && !health?.groq_configured) { setMessage("Add your Groq API key in Settings to use Groq transcription."); return; }
+    if (cloudProvider === "gemini" && !health?.gemini_configured) { setMessage("Add your Gemini API key in Settings to use Gemini transcription."); return; }
     setLoading(true);
     try {
       const createRequest = async (file?: File, sourceUrl?: string) => {
-        const body = new FormData(); body.set("model_name", model); body.set("language", language); body.set("diarize", String(diarize)); body.set("generate_summary", "true"); body.set("allow_gemini_fallback", "true"); body.set("summary_language", "zh-CN"); body.set("summary_style", summaryStyle); body.set("summary_custom_instructions", summaryCustomInstructions.trim());
+        const body = new FormData(); body.set("model_name", model); body.set("language", language); body.set("diarize", String(diarize)); body.set("generate_summary", "true"); body.set("allow_gemini_fallback", "true"); body.set("cloud_provider", cloudProvider); body.set("groq_model", groqModel); body.set("summary_language", "zh-CN"); body.set("summary_style", summaryStyle); body.set("summary_custom_instructions", summaryCustomInstructions.trim());
         let endpoint = `${API_BASE}/api/jobs/upload`; if (file) body.set("file", file); else { endpoint = `${API_BASE}/api/jobs/url`; body.set("url", sourceUrl ?? ""); }
         const response = await fetch(endpoint, { method: "POST", body }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.detail ?? "Unable to create this task."); return data as Job;
       };
@@ -381,7 +384,7 @@ export function SonicBriefApp() {
         </section>
 
         <div className="sonic-sidebar-bottom">
-          <GeminiSettings onConfiguredChange={(configured) => setHealth((current) => current ? { ...current, gemini_configured: configured } : current)} />
+          <GeminiSettings onConfiguredChange={(configured) => setHealth((current) => current ? { ...current, gemini_configured: configured } : current)} onGroqConfiguredChange={(configured) => setHealth((current) => current ? { ...current, groq_configured: configured } : current)} />
           <div className="sonic-local-status"><MonitorDot /><span>{health ? "Local API connected" : "Backend offline"}</span></div>
         </div>
       </aside>
@@ -461,7 +464,7 @@ export function SonicBriefApp() {
                     </div>
                     {activeJob.stage === "transcribe" && (
                       <div className="sonic-processing-meta">
-                        <span>Whisper model <strong>{activeJob.model_name}</strong></span>
+                        <span>Transcription model <strong>{activeJob.model_name}</strong></span>
                         <span>Language <strong>{activeJob.language || "detecting…"}</strong></span>
                         {activeJob.processed_duration != null && activeJob.duration ? <span>Audio <strong>{formatTime(activeJob.processed_duration)} / {formatTime(activeJob.duration)}</strong></span> : null}
                       </div>
@@ -550,7 +553,7 @@ export function SonicBriefApp() {
                         <div><span>Creator / Channel</span><strong>{activeJob.creator_name || "Not available"}</strong></div>
                         <div><span>Duration</span><strong>{activeJob.duration ? formatTime(activeJob.duration) : "—"}</strong></div>
                         <div><span>Transcript language</span><strong>{activeJob.language || "—"}</strong></div>
-                        <div><span>Whisper model</span><strong>{activeJob.model_name || "—"}</strong></div>
+                        <div><span>Transcription model</span><strong>{activeJob.model_name || "—"}</strong></div>
                         <div><span>Processing engine</span><strong>{activeJob.engine || "—"}</strong></div>
                         <div><span>Speaker detection</span><strong>{activeJob.diarization_enabled ? (health?.diarization_configured ? "Enabled" : "Requested · HF token unavailable") : "Disabled"}</strong></div>
                         <div><span>Created</span><strong>{formatDate(activeJob.created_at)}</strong></div>
@@ -596,9 +599,22 @@ export function SonicBriefApp() {
               <details className="sonic-advanced-options">
                 <summary>Advanced options</summary>
                 <div className="sonic-config-grid">
-                  <div><Label htmlFor="whisper-model">Whisper model</Label><Select value={model} onValueChange={setModel}><SelectTrigger id="whisper-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="turbo">Turbo · recommended</SelectItem><SelectItem value="large-v3">Large v3 · best accuracy</SelectItem><SelectItem value="distil-large-v3">Distil large v3 · English</SelectItem><SelectItem value="small">Small · faster</SelectItem></SelectContent></Select></div>
+                  <div><Label htmlFor="transcription-provider">Transcription provider</Label><Select value={cloudProvider} onValueChange={(value) => setCloudProvider(value as CloudProvider)}><SelectTrigger id="transcription-provider" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="local">Local Whisper · private</SelectItem><SelectItem value="groq">Groq cloud · fast</SelectItem><SelectItem value="gemini">Gemini cloud</SelectItem></SelectContent></Select></div>
                   <div><Label htmlFor="language">Transcript language</Label><Select value={language} onValueChange={setLanguage}><SelectTrigger id="language" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Auto-detect</SelectItem><SelectItem value="en">English</SelectItem><SelectItem value="zh">Chinese</SelectItem><SelectItem value="ms">Malay</SelectItem><SelectItem value="ja">Japanese</SelectItem><SelectItem value="ko">Korean</SelectItem><SelectItem value="id">Indonesian</SelectItem></SelectContent></Select></div>
                 </div>
+                {cloudProvider === "local" && (
+                  <div className="sonic-config-grid">
+                    <div><Label htmlFor="whisper-model">Whisper model</Label><Select value={model} onValueChange={setModel}><SelectTrigger id="whisper-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="turbo">Turbo · recommended</SelectItem><SelectItem value="large-v3">Large v3 · best accuracy</SelectItem><SelectItem value="distil-large-v3">Distil large v3 · English</SelectItem><SelectItem value="small">Small · faster</SelectItem></SelectContent></Select></div>
+                  </div>
+                )}
+                {cloudProvider === "groq" && (
+                  <div className="sonic-config-grid">
+                    <div><Label htmlFor="groq-model">Groq model</Label><Select value={groqModel} onValueChange={setGroqModel}><SelectTrigger id="groq-model" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="whisper-large-v3-turbo">Turbo · faster & cheaper</SelectItem><SelectItem value="whisper-large-v3">Large v3 · quality</SelectItem></SelectContent></Select><p className="sonic-source-help">Audio is uploaded to Groq for transcription.{health?.groq_configured ? "" : " Add your Groq API key in Settings first."}</p></div>
+                  </div>
+                )}
+                {cloudProvider === "gemini" && (
+                  <p className="sonic-source-help">Audio is uploaded to Gemini for transcription.{health?.gemini_configured ? "" : " Add your Gemini API key in Settings first."}</p>
+                )}
                 <div className="sonic-summary-preset-field">
                   <Label htmlFor="new-summary-style">Summary style</Label>
                   <Select value={summaryStyle} onValueChange={(value) => setSummaryStyle(value as SummaryStyle)}>

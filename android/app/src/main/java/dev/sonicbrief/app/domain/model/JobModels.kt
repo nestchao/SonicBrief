@@ -27,7 +27,7 @@ enum class JobStage {
 /** The standalone app only talks to Gemini; kept as an enum for forward compatibility. */
 enum class ProcessingMode { GEMINI }
 
-enum class ProcessingProvider { GEMINI }
+enum class ProcessingProvider { GEMINI, GROQ }
 
 enum class SourceType {
     URL,
@@ -67,6 +67,26 @@ data class Job(
             ?: sourceFilename?.takeIf { it.isNotBlank() }
             ?: sourceUrl.orEmpty()
 }
+
+/**
+ * A fresh summary means the job is done, even if an earlier pipeline stage (typically
+ * summarization itself) left it FAILED. Transcript + summary now exist, so the FAILED
+ * badge on Library/Home cards must go away. Jobs that already completed pass through.
+ */
+fun Job.healedAfterSummary(now: Instant = Instant.now()): Job =
+    if (status == JobStatus.FAILED || status == JobStatus.CANCELLED) {
+        copy(
+            status = JobStatus.COMPLETED,
+            stage = JobStage.COMPLETED,
+            progress = 100,
+            stageDetail = null,
+            errorCode = null,
+            errorMessage = null,
+            completedAt = now,
+        )
+    } else {
+        this
+    }
 
 data class TranscriptSegment(
     val sequence: Int,

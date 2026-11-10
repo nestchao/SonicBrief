@@ -17,6 +17,7 @@ import dev.sonicbrief.app.data.settings.SettingsRepository
 import dev.sonicbrief.app.domain.model.Job
 import dev.sonicbrief.app.domain.model.JobStage
 import dev.sonicbrief.app.domain.model.JobStatus
+import dev.sonicbrief.app.domain.model.ProcessingProvider
 import dev.sonicbrief.app.domain.model.SourceType
 import java.io.File
 import java.time.Instant
@@ -41,6 +42,7 @@ class JobScheduler @Inject constructor(
         val transcriptLanguage: String,
         val summaryLanguage: String,
         val instructions: String?,
+        val provider: ProcessingProvider = ProcessingProvider.GEMINI,
     )
 
     suspend fun submitUrl(rawUrl: String, options: Options): Result<Job> = runCatching {
@@ -116,7 +118,8 @@ class JobScheduler @Inject constructor(
             transcriptLanguage = options.transcriptLanguage,
             summaryLanguage = options.summaryLanguage,
             customInstructions = options.instructions?.takeIf { it.isNotBlank() },
-            model = current.model,
+            processingProvider = options.provider,
+            model = if (options.provider == ProcessingProvider.GROQ) current.groqModel else current.model,
             createdAt = Instant.now(),
         )
     }

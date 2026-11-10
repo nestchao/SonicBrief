@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 import config
 import download_settings
 import gemini_settings
+import groq_settings
 import pipeline
 import storage
 
@@ -130,6 +131,23 @@ def submit_pipeline(job_id: str, **options: object) -> None:
     EXECUTOR.submit(pipeline.run_job, job_id, **options)
 
 
+def validate_cloud_provider(cloud_provider: str, groq_model: str) -> tuple[str, str]:
+    provider = (cloud_provider or "local").strip().lower()
+    if provider not in {"local", "gemini", "groq"}:
+        raise HTTPException(status_code=400, detail="Transcription provider must be local, gemini, or groq.")
+    selected_groq_model = (groq_model or "").strip() or groq_settings.get_groq_model()
+    if provider == "groq":
+        try:
+            selected_groq_model = groq_settings.normalize_groq_model_id(selected_groq_model)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not groq_settings.is_configured():
+            raise HTTPException(status_code=409, detail="Add your Groq API key in Settings to use Groq transcription.")
+    if provider == "gemini" and not gemini_settings.is_configured():
+        raise HTTPException(status_code=409, detail="Add your Gemini API key in Settings to use Gemini transcription.")
+    return provider, selected_groq_model
+
+
 @app.get("/api/health")
 def health() -> dict[str, object]:
     gpu = pipeline.cuda_available()
@@ -144,6 +162,7 @@ def health() -> dict[str, object]:
         "device": "NVIDIA GPU" if gpu else "CPU mode",
         "ffmpeg_available": pipeline.ffmpeg_available(),
         "gemini_configured": gemini_settings.is_configured(),
+        "groq_configured": groq_settings.is_configured(),
         "diarization_configured": bool(config.HF_TOKEN),
         "models": config.ALLOWED_MODELS,
     }
@@ -402,6 +421,134 @@ def clear_gemini_settings() -> dict[str, object]:
     }
 
 
+@app.get("/api/settings/groq")
+def groq_settings_status() -> dict[str, object]:
+    return {
+        "configured": groq_settings.is_configured(),
+        "model": groq_settings.get_groq_model(),
+        "models": groq_settings.available_groq_models(),
+    }
+
+
+@app.post("/api/settings/groq/models")
+async def available_groq_models(payload: dict[str, object]) -> dict[str, object]:
+    api_key = payload.get("api_key")
+    if api_key is None:
+        key = groq_settings.get_groq_api_key()
+    elif isinstance(api_key, str):
+        key = api_key.strip()
+    else:
+        raise HTTPException(status_code=400, detail="API key must be a string.")
+
+    if not key:
+        raise HTTPException(status_code=400, detail="API key is required to check Groq models.")
+    if len(key) > 512:
+        raise HTTPException(status_code=400, detail="API key is too long.")
+
+    # Validate the key against Groq without uploading any audio.
+    try:
+        import httpx
+        response = await asyncio.to_thread(
+            httpx.get,
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=30.0,
+        )
+        if response.status_code in (401, 403):
+            raise HTTPException(
+                status_code=400,
+                detail="Groq rejected the API key. Check the key in Settings — it may be wrong, revoked, or out of credit.",
+            )
+        if response.status_code == 429:
+            raise HTTPException(status_code=502, detail="Groq is rate-limiting this key right now. Try again in a minute.")
+        if response.status_code >= 400:
+            raise HTTPException(status_code=502, detail=f"Could not verify the Groq key (HTTP {response.status_code}).")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach Groq: {exc}") from exc
+
+    models = groq_settings.available_groq_models()
+    current_model = groq_settings.get_groq_model()
+    available_ids = {str(item["id"]) for item in models}
+    selected_model = current_model if current_model in available_ids else str(models[0]["id"])
+    return {"model": selected_model, "models": models}
+
+
+@app.post("/api/settings/groq")
+def save_groq_settings(payload: dict[str, object]) -> dict[str, object]:
+    api_key = payload.get("api_key")
+    model = payload.get("model", groq_settings.get_groq_model())
+
+    if api_key is not None:
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise HTTPException(status_code=400, detail="API key must be a non-empty string.")
+        api_key = api_key.strip()
+        if len(api_key) > 512:
+            raise HTTPException(status_code=400, detail="API key is too long.")
+
+    if not isinstance(model, str):
+        raise HTTPException(status_code=400, detail="Groq model is required.")
+
+    try:
+        selected_model = groq_settings.save_groq_model(model)
+        if api_key is not None:
+            groq_settings.save_groq_api_key(api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "configured": groq_settings.is_configured(),
+        "model": selected_model,
+        "models": groq_settings.available_groq_models(),
+    }
+
+
+@app.post("/api/settings/groq/test")
+async def test_groq_settings(payload: dict[str, object]) -> dict[str, object]:
+    api_key = payload.get("api_key")
+    if api_key is None:
+        key = groq_settings.get_groq_api_key()
+    elif isinstance(api_key, str):
+        key = api_key.strip()
+    else:
+        raise HTTPException(status_code=400, detail="API key must be a string.")
+
+    if not key:
+        raise HTTPException(status_code=400, detail="API key is required.")
+    if len(key) > 512:
+        raise HTTPException(status_code=400, detail="API key is too long.")
+
+    try:
+        import httpx
+        response = await asyncio.to_thread(
+            httpx.get,
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=30.0,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach Groq: {exc}") from exc
+    if response.status_code in (401, 403):
+        raise HTTPException(
+            status_code=400,
+            detail="Groq rejected the API key. Check the key in Settings — it may be wrong, revoked, or out of credit.",
+        )
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Groq connection failed (HTTP {response.status_code}).")
+    return {"ok": True, "model": groq_settings.get_groq_model()}
+
+
+@app.delete("/api/settings/groq")
+def clear_groq_settings() -> dict[str, object]:
+    groq_settings.clear_groq_api_key()
+    return {
+        "configured": False,
+        "model": groq_settings.get_groq_model(),
+        "models": groq_settings.available_groq_models(),
+    }
+
+
 @app.get("/api/jobs")
 def jobs(limit: int = 50) -> list[dict[str, object]]:
     return storage.list_jobs(limit)
@@ -426,8 +573,11 @@ async def create_upload_job(
     summary_custom_instructions: str = Form(""),
     generate_summary: bool = Form(False),
     allow_gemini_fallback: bool = Form(False),
+    cloud_provider: str = Form("local"),
+    groq_model: str = Form(""),
 ) -> dict[str, object]:
     validate_options(model_name, language)
+    provider, selected_groq_model = validate_cloud_provider(cloud_provider, groq_model)
     if generate_summary:
         summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
     filename = Path(file.filename or "recording").name
@@ -435,9 +585,14 @@ async def create_upload_job(
     if suffix not in config.ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported media type: {suffix or 'unknown'}")
 
+    display_model = model_name
+    if provider == "groq":
+        display_model = f"groq/{selected_groq_model}"
+    elif provider == "gemini":
+        display_model = f"gemini/{gemini_settings.get_gemini_model()}"
     record = storage.create_job(
         title=filename, source_type="upload", source_url=None,
-        model_name=model_name, diarization_enabled=diarize,
+        model_name=display_model, diarization_enabled=diarize,
     )
     destination = config.UPLOAD_DIR / f"{record['id']}{suffix}"
     size = 0
@@ -462,6 +617,7 @@ async def create_upload_job(
         summary_custom_instructions=summary_custom_instructions,
         generate_summary=generate_summary,
         allow_gemini_fallback=allow_gemini_fallback,
+        cloud_provider=provider, groq_model=selected_groq_model,
     )
     return storage.get_job(record["id"])
 
@@ -477,8 +633,11 @@ def create_url_job(
     summary_custom_instructions: str = Form(""),
     generate_summary: bool = Form(False),
     allow_gemini_fallback: bool = Form(False),
+    cloud_provider: str = Form("local"),
+    groq_model: str = Form(""),
 ) -> dict[str, object]:
     validate_options(model_name, language)
+    provider, selected_groq_model = validate_cloud_provider(cloud_provider, groq_model)
     if generate_summary:
         summary_style, summary_custom_instructions = validate_summary_options(summary_style, summary_custom_instructions)
     try:
@@ -486,9 +645,14 @@ def create_url_job(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     label = f"{pipeline.source_label(source_type)} media"
+    display_model = model_name
+    if provider == "groq":
+        display_model = f"groq/{selected_groq_model}"
+    elif provider == "gemini":
+        display_model = f"gemini/{gemini_settings.get_gemini_model()}"
     record = storage.create_job(
         title=label, source_type=source_type, source_url=url.strip(),
-        model_name=model_name, diarization_enabled=diarize,
+        model_name=display_model, diarization_enabled=diarize,
     )
     submit_pipeline(
         record["id"], upload_path=None, source_url=url.strip(),
@@ -497,6 +661,7 @@ def create_url_job(
         summary_custom_instructions=summary_custom_instructions,
         generate_summary=generate_summary,
         allow_gemini_fallback=allow_gemini_fallback,
+        cloud_provider=provider, groq_model=selected_groq_model,
     )
     return storage.get_job(record["id"])
 

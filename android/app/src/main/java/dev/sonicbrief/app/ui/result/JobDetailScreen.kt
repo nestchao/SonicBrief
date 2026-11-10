@@ -2,10 +2,7 @@ package dev.sonicbrief.app.ui.result
 
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import dev.sonicbrief.app.ui.theme.IosMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -488,8 +485,8 @@ private fun SummarySection(
 
             AnimatedVisibility(
                 visible = showCustomize,
-                enter = fadeIn(tween(160)) + slideInVertically(tween(200)) { -it / 5 },
-                exit = fadeOut(tween(100)),
+                enter = IosMotion.expandEnter(),
+                exit = IosMotion.collapseExit(),
             ) {
                 Column {
                     Spacer(Modifier.height(16.dp))

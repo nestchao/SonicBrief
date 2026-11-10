@@ -33,7 +33,8 @@ fun JobEntity.toDomain(): Job = Job(
     progress = progress,
     stageDetail = stageDetail,
     processingMode = ProcessingMode.GEMINI,
-    processingProvider = ProcessingProvider.GEMINI,
+    processingProvider = runCatching { ProcessingProvider.valueOf(provider.uppercase()) }
+        .getOrDefault(ProcessingProvider.GEMINI),
     transcriptLanguage = transcriptLanguage,
     summaryLanguage = summaryLanguage,
     customInstructions = customInstructions,
@@ -60,6 +61,7 @@ fun Job.toEntity(): JobEntity = JobEntity(
     transcriptLanguage = transcriptLanguage,
     summaryLanguage = summaryLanguage,
     customInstructions = customInstructions,
+    provider = processingProvider?.name?.lowercase() ?: "gemini",
     model = model,
     errorCode = errorCode,
     errorMessage = errorMessage,

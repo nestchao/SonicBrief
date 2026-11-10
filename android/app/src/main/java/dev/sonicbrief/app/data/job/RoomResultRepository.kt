@@ -4,6 +4,7 @@ import dev.sonicbrief.app.data.gemini.GeminiSummarizer
 import dev.sonicbrief.app.data.local.TranscriptDao
 import dev.sonicbrief.app.data.local.toDomain
 import dev.sonicbrief.app.data.settings.SettingsRepository
+import dev.sonicbrief.app.domain.model.healedAfterSummary
 import dev.sonicbrief.app.domain.repository.JobResults
 import dev.sonicbrief.app.domain.repository.ResultRepository
 import java.util.UUID
@@ -66,5 +67,11 @@ class RoomResultRepository @Inject constructor(
             model = model,
             instructions = customInstructions,
         )
+        // Transcript + summary now exist, so a FAILED badge left by an earlier
+        // summarization attempt must go away on Library/Home cards.
+        store.get(transcript.jobId)?.let { job ->
+            val healed = job.healedAfterSummary()
+            if (healed != job) store.save(healed)
+        }
     }
 }

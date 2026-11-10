@@ -11,11 +11,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +60,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.sonicbrief.app.domain.model.JobStatus
+import dev.sonicbrief.app.ui.theme.IosMotion
 import dev.sonicbrief.app.ui.history.HistoryScreen
 import dev.sonicbrief.app.ui.home.HomeScreen
 import dev.sonicbrief.app.ui.home.HomeViewModel
@@ -178,8 +176,8 @@ private fun SonicBriefApp(
         bottomBar = {
             AnimatedVisibility(
                 visible = route != Routes.JOB,
-                enter = slideInVertically(tween(220)) { it } + fadeIn(tween(180)),
-                exit = slideOutVertically(tween(180)) { it } + fadeOut(tween(120)),
+                enter = IosMotion.barEnter(),
+                exit = IosMotion.barExit(),
             ) {
                 FloatingNavBar(
                     currentRoute = route,
@@ -195,7 +193,13 @@ private fun SonicBriefApp(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding()),
         ) {
-            composable(Routes.HOME) {
+            composable(
+                Routes.HOME,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { IosMotion.popEnter() },
+                popExitTransition = { ExitTransition.None },
+            ) {
                 HomeScreen(
                     state = homeState,
                     jobs = jobs,
@@ -205,6 +209,7 @@ private fun SonicBriefApp(
                     onClearFile = homeViewModel::clearPendingFile,
                     onTranscriptLanguageChange = homeViewModel::onTranscriptLanguageChange,
                     onSummaryLanguageChange = homeViewModel::onSummaryLanguageChange,
+                    onProviderChange = homeViewModel::onProviderChange,
                     onTemplateChange = homeViewModel::onTemplateChange,
                     onInstructionsChange = homeViewModel::onInstructionsChange,
                     onStart = homeViewModel::start,
@@ -214,7 +219,13 @@ private fun SonicBriefApp(
                     onOpenSettings = { navigateTop(nav, Routes.SETTINGS) },
                 )
             }
-            composable(Routes.HISTORY) {
+            composable(
+                Routes.HISTORY,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { IosMotion.popEnter() },
+                popExitTransition = { ExitTransition.None },
+            ) {
                 HistoryScreen(
                     jobs = jobs,
                     onOpenJob = { nav.navigate(Routes.job(it.id)) },
@@ -222,7 +233,13 @@ private fun SonicBriefApp(
                     onDelete = homeViewModel::delete,
                 )
             }
-            composable(Routes.SETTINGS) {
+            composable(
+                Routes.SETTINGS,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { IosMotion.popEnter() },
+                popExitTransition = { ExitTransition.None },
+            ) {
                 SettingsScreen(
                     state = settingsState,
                     onKeyInputChange = settingsViewModel::onKeyInputChange,
@@ -231,11 +248,24 @@ private fun SonicBriefApp(
                     onRemoveKey = settingsViewModel::removeKey,
                     onModelInputChange = settingsViewModel::onModelInputChange,
                     onSaveModel = settingsViewModel::saveModel,
+                    onSelectProvider = settingsViewModel::selectProvider,
+                    onGroqKeyInputChange = settingsViewModel::onGroqKeyInputChange,
+                    onSaveGroqKey = settingsViewModel::saveGroqKey,
+                    onTestGroqKey = settingsViewModel::testGroqKey,
+                    onRemoveGroqKey = settingsViewModel::removeGroqKey,
+                    onGroqModelInputChange = settingsViewModel::onGroqModelInputChange,
+                    onSaveGroqModel = settingsViewModel::saveGroqModel,
                     onImportCookies = settingsViewModel::importCookies,
                     onRemoveCookies = settingsViewModel::removeCookies,
                 )
             }
-            composable(Routes.JOB) { entry ->
+            composable(
+                Routes.JOB,
+                enterTransition = { IosMotion.pushEnter() },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { IosMotion.popEnter() },
+                popExitTransition = { IosMotion.popExit() },
+            ) { entry ->
                 val id = entry.arguments?.getString("id")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                 val job = jobs.firstOrNull { it.id == id }
                 when {
