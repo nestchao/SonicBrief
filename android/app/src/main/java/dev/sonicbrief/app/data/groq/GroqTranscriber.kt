@@ -113,6 +113,9 @@ class GroqTranscriber @Inject constructor(
         val byteRate: Long,
         val blockAlign: Int,
         val sampleRate: Int,
+        val audioFormat: Int,
+        val channels: Int,
+        val bitsPerSample: Int,
     )
 
     private fun readWavHeader(file: File): WavHeader? = runCatching {
@@ -123,25 +126,29 @@ class GroqTranscriber @Inject constructor(
             var byteRate = 0L
             var blockAlign = 0
             var sampleRate = 0
+            var audioFormat = 0
+            var channels = 0
+            var bitsPerSample = 0
             while (raf.filePointer + 8 <= raf.length()) {
                 val id = raf.readAscii(4)
                 val size = Integer.toUnsignedLong(java.lang.Integer.reverseBytes(raf.readInt()))
                 val start = raf.filePointer
                 when (id) {
                     "fmt " -> {
-                        raf.readUnsignedShortLE()
-                        raf.readUnsignedShortLE()
+                        audioFormat = raf.readUnsignedShortLE()
+                        channels = raf.readUnsignedShortLE()
                         sampleRate = raf.readIntLE()
                         byteRate = Integer.toUnsignedLong(raf.readIntLE())
                         blockAlign = raf.readUnsignedShortLE()
+                        bitsPerSample = raf.readUnsignedShortLE()
                     }
-                    "data" -> return WavHeader(start, minOf(size, raf.length() - start), byteRate, blockAlign, sampleRate)
+                    "data" -> return WavHeader(start, minOf(size, raf.length() - start), byteRate, blockAlign, sampleRate, audioFormat, channels, bitsPerSample)
                 }
                 raf.seek(start + size + (size and 1L))
             }
             null
         }
-    }.getOrNull()?.takeIf { it.byteRate > 0 && it.blockAlign > 0 && it.dataBytes > 0 }
+    }.getOrNull()?.takeIf { it.byteRate > 0 && it.blockAlign > 0 && it.dataBytes > 0 && it.audioFormat == 1 && it.bitsPerSample == 16 }
 
     private fun splitWav(file: File, header: WavHeader, cache: File): List<AudioChunk> {
         val safeChunkBytes = MAX_BYTES - WAV_HEADER_BYTES
@@ -176,7 +183,8 @@ class GroqTranscriber @Inject constructor(
                 output, "audio/wav", output.name, endMs - startMs,
                 ChunkRange(index, startMs, endMs), true,
             )
-            sourceOffset += bytes
+            val overlapBytes = minOf((header.byteRate / 1000L) * OVERLAP_MS, bytes / 4)
+            sourceOffset += (bytes - overlapBytes).coerceAtLeast(header.blockAlign.toLong())
             index++
         }
         require(result.isNotEmpty() && result.last().range.endMs >= totalDuration - 1000L) {
@@ -299,12 +307,12 @@ class GroqTranscriber @Inject constructor(
         out.writeIntLE(total.toInt())
         out.writeBytes("WAVEfmt ")
         out.writeIntLE(16)
-        out.writeShortLE(1)
-        out.writeShortLE(1)
+        out.writeShortLE(header.audioFormat)
+        out.writeShortLE(header.channels)
         out.writeIntLE(header.sampleRate)
         out.writeIntLE(header.byteRate.toInt())
         out.writeShortLE(header.blockAlign)
-        out.writeShortLE(16)
+        out.writeShortLE(header.bitsPerSample)
         out.writeBytes("data")
         out.writeIntLE(dataBytes.toInt())
     }
@@ -319,6 +327,7 @@ class GroqTranscriber @Inject constructor(
         const val MAX_BYTES = 24_000_000L
         const val CHUNK_MS = LONG_MEDIA_CHUNK_MS
         const val TIMESTAMP_TOLERANCE_SECONDS = 1.0
+        const val OVERLAP_MS = 1_000L
         const val WAV_HEADER_BYTES = 44
     }
 }
