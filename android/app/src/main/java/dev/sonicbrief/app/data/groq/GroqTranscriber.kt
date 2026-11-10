@@ -120,37 +120,50 @@ class GroqTranscriber @Inject constructor(
         val bitsPerSample: Int,
     )
 
-    private fun readWavHeader(file: File): WavHeader? = runCatching {
-        RandomAccessFile(file, "r").use { raf ->
-            if (raf.readAscii(4) != "RIFF") return null
-            raf.skipBytes(4)
-            if (raf.readAscii(4) != "WAVE") return null
-            var byteRate = 0L
-            var blockAlign = 0
-            var sampleRate = 0
-            var audioFormat = 0
-            var channels = 0
-            var bitsPerSample = 0
-            while (raf.filePointer + 8 <= raf.length()) {
-                val id = raf.readAscii(4)
-                val size = Integer.toUnsignedLong(java.lang.Integer.reverseBytes(raf.readInt()))
-                val start = raf.filePointer
-                when (id) {
-                    "fmt " -> {
-                        audioFormat = raf.readUnsignedShortLE()
-                        channels = raf.readUnsignedShortLE()
-                        sampleRate = raf.readIntLE()
-                        byteRate = Integer.toUnsignedLong(raf.readIntLE())
-                        blockAlign = raf.readUnsignedShortLE()
-                        bitsPerSample = raf.readUnsignedShortLE()
+    private fun readWavHeader(file: File): WavHeader? {
+        val parsed = runCatching {
+            RandomAccessFile(file, "r").use { raf ->
+                if (raf.readAscii(4) != "RIFF") return@use null
+                raf.skipBytes(4)
+                if (raf.readAscii(4) != "WAVE") return@use null
+                var byteRate = 0L
+                var blockAlign = 0
+                var sampleRate = 0
+                var audioFormat = 0
+                var channels = 0
+                var bitsPerSample = 0
+                var result: WavHeader? = null
+                while (raf.filePointer + 8 <= raf.length()) {
+                    val id = raf.readAscii(4)
+                    val size = Integer.toUnsignedLong(java.lang.Integer.reverseBytes(raf.readInt()))
+                    val start = raf.filePointer
+                    when (id) {
+                        "fmt " -> {
+                            audioFormat = raf.readUnsignedShortLE()
+                            channels = raf.readUnsignedShortLE()
+                            sampleRate = raf.readIntLE()
+                            byteRate = Integer.toUnsignedLong(raf.readIntLE())
+                            blockAlign = raf.readUnsignedShortLE()
+                            bitsPerSample = raf.readUnsignedShortLE()
+                        }
+                        "data" -> {
+                            result = WavHeader(
+                                start, minOf(size, raf.length() - start), byteRate, blockAlign,
+                                sampleRate, audioFormat, channels, bitsPerSample,
+                            )
+                            break
+                        }
                     }
-                    "data" -> return WavHeader(start, minOf(size, raf.length() - start), byteRate, blockAlign, sampleRate, audioFormat, channels, bitsPerSample)
+                    raf.seek(start + size + (size and 1L))
                 }
-                raf.seek(start + size + (size and 1L))
+                result
             }
-            null
+        }.getOrNull()
+        return parsed?.takeIf {
+            it.byteRate > 0 && it.blockAlign > 0 && it.dataBytes > 0 &&
+                it.audioFormat == 1 && it.bitsPerSample == 16
         }
-    }.getOrNull()?.takeIf { it.byteRate > 0 && it.blockAlign > 0 && it.dataBytes > 0 && it.audioFormat == 1 && it.bitsPerSample == 16 }
+    }
 
     private fun splitWav(file: File, header: WavHeader, cache: File): List<AudioChunk> {
         val safeChunkBytes = MAX_BYTES - WAV_HEADER_BYTES
