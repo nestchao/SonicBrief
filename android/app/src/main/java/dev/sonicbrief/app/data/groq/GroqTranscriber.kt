@@ -3,6 +3,7 @@ package dev.sonicbrief.app.data.groq
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.media.MediaMetadataRetriever
 import dev.sonicbrief.app.data.gemini.ChunkRange
 import dev.sonicbrief.app.data.gemini.ParsedSegment
 import dev.sonicbrief.app.data.gemini.LONG_MEDIA_CHUNK_MS
@@ -90,7 +91,8 @@ class GroqTranscriber @Inject constructor(
 
     private fun makeChunks(file: File, mimeType: String, durationMs: Long?, cache: File): List<AudioChunk> {
         if (file.length() <= MAX_BYTES) {
-            val duration = durationMs ?: wavDuration(file) ?: error("Unable to determine the audio duration.")
+            val duration = wavDuration(file) ?: mediaDuration(file) ?: durationMs
+                ?: error("Unable to determine the actual audio duration.")
             return listOf(AudioChunk(file, mimeType, file.name, duration, ChunkRange(0, 0, duration), false))
         }
 
@@ -303,6 +305,18 @@ class GroqTranscriber @Inject constructor(
     }
 
     private fun wavDuration(file: File): Long? = readWavHeader(file)?.let { it.dataBytes * 1000L / it.byteRate }
+
+    private fun mediaDuration(file: File): Long? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        } catch (_: Throwable) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
 
     private fun writeWavHeader(out: RandomAccessFile, header: WavHeader, dataBytes: Long) {
         val total = dataBytes + 36L
