@@ -1,6 +1,9 @@
 name: Android Groq Debug APK
 
 on:
+  push:
+    branches:
+      - feat/groq-whisper-android-issue-30
   pull_request:
     branches:
       - main
