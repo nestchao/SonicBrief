@@ -278,7 +278,7 @@ class GroqTranscriber @Inject constructor(
 
     private fun fingerprint(file: File, model: String, language: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("${file.length()}:${file.lastModified()}:$model:$language".toByteArray())
+        digest.update("${file.length()}:$model:$language".toByteArray())
         file.inputStream().use { input ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
