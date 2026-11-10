@@ -9,6 +9,9 @@ on:
       - "feat/groq-whisper-android-issue-30"
     tags:
       - "android-v*"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
