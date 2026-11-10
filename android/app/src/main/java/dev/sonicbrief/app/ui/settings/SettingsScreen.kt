@@ -71,6 +71,12 @@ fun SettingsScreen(
     onSaveKey: () -> Unit,
     onTestKey: () -> Unit,
     onRemoveKey: () -> Unit,
+    onGroqKeyInputChange: (String) -> Unit,
+    onSaveGroqKey: () -> Unit,
+    onTestGroqKey: () -> Unit,
+    onRemoveGroqKey: () -> Unit,
+    onSaveProvider: (String) -> Unit,
+    onSaveGroqModel: (String) -> Unit,
     onModelInputChange: (String) -> Unit,
     onSaveModel: (String) -> Unit,
     onImportCookies: (android.net.Uri) -> Unit,
@@ -117,7 +123,22 @@ fun SettingsScreen(
         }
 
         item {
-            SectionLabel("Model")
+            SectionLabel("Transcription provider")
+        }
+        item {
+            GroqCard(
+                state = state,
+                onGroqKeyInputChange = onGroqKeyInputChange,
+                onSaveGroqKey = onSaveGroqKey,
+                onTestGroqKey = onTestGroqKey,
+                onRemoveGroqKey = onRemoveGroqKey,
+                onSaveProvider = onSaveProvider,
+                onSaveGroqModel = onSaveGroqModel,
+            )
+        }
+
+        item {
+            SectionLabel("Gemini summarization model")
         }
         item {
             ModelCard(
@@ -144,6 +165,86 @@ fun SettingsScreen(
         }
         item {
             AboutCard()
+        }
+    }
+}
+
+@Composable
+private fun GroqCard(
+    state: SettingsUiState,
+    onGroqKeyInputChange: (String) -> Unit,
+    onSaveGroqKey: () -> Unit,
+    onTestGroqKey: () -> Unit,
+    onRemoveGroqKey: () -> Unit,
+    onSaveProvider: (String) -> Unit,
+    onSaveGroqModel: (String) -> Unit,
+) {
+    var keyVisible by remember { mutableStateOf(false) }
+    SoftCard {
+        Text("Choose transcription provider", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChoicePill("Gemini", state.settings.transcriptionProvider == "gemini") { onSaveProvider("gemini") }
+            ChoicePill("Groq Whisper", state.settings.transcriptionProvider == "groq") { onSaveProvider("groq") }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Groq transcribes audio only. Gemini is still required for summaries. When Groq is selected, your audio is uploaded directly to Groq using your own API key.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Groq API key", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    if (state.settings.hasGroqApiKey) "Encrypted on this phone · ends in ${state.settings.groqApiKeyLast4 ?: "••••"}"
+                    else "Not configured",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StatusPill(if (state.settings.hasGroqApiKey) "Active" else "Missing",
+                if (state.settings.hasGroqApiKey) PillTone.Success else PillTone.Error)
+        }
+        Spacer(Modifier.height(10.dp))
+        SonicTextField(
+            value = state.groqKeyInput,
+            onValueChange = onGroqKeyInputChange,
+            label = if (state.settings.hasGroqApiKey) "Replace Groq key" else "Paste Groq API key",
+            placeholder = "gsk_…",
+            singleLine = true,
+            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                TextButton(onClick = { keyVisible = !keyVisible }) { Text(if (keyVisible) "Hide" else "Show") }
+            },
+        )
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton(
+            text = if (state.busy) "Validating…" else "Validate & save Groq key",
+            onClick = onSaveGroqKey,
+            enabled = !state.busy && state.groqKeyInput.isNotBlank(),
+            loading = state.busy,
+            icon = Icons.Filled.Check,
+        )
+        if (state.settings.hasGroqApiKey) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SecondaryButton("Test", onTestGroqKey, enabled = !state.busy, fill = false, modifier = Modifier.weight(1f))
+                SecondaryButton("Remove", onRemoveGroqKey, enabled = !state.busy, icon = Icons.Filled.Delete, fill = false, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Groq Whisper model", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChoicePill("Large v3 Turbo", state.settings.groqModel == "whisper-large-v3-turbo") {
+                onSaveGroqModel("whisper-large-v3-turbo")
+            }
+            ChoicePill("Large v3", state.settings.groqModel == "whisper-large-v3") {
+                onSaveGroqModel("whisper-large-v3")
+            }
         }
     }
 }
