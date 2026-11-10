@@ -216,6 +216,7 @@ class GroqTranscriber @Inject constructor(
                     val outTrack = muxer.addTrack(format)
                     muxer.start()
                     extractor.seekTo(range.startMs * 1000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+                    val actualStartUs = extractor.sampleTime.takeIf { it >= 0L } ?: range.startMs * 1000L
                     val buffer = ByteBuffer.allocate(2 * 1024 * 1024)
                     val info = android.media.MediaCodec.BufferInfo()
                     while (true) {
@@ -224,7 +225,7 @@ class GroqTranscriber @Inject constructor(
                         buffer.clear()
                         val size = extractor.readSampleData(buffer, 0)
                         if (size <= 0) break
-                        info.set(0, size, (sampleTime - range.startMs * 1000L).coerceAtLeast(0L), extractor.sampleFlags)
+                        info.set(0, size, (sampleTime - actualStartUs).coerceAtLeast(0L), extractor.sampleFlags)
                         muxer.writeSampleData(outTrack, buffer, info)
                         extractor.advance()
                     }
@@ -235,7 +236,9 @@ class GroqTranscriber @Inject constructor(
                 require(output.isFile && output.length() in 1..MAX_BYTES) {
                     "The M4A chunk exceeds Groq's upload limit; re-encode the audio at a lower bitrate."
                 }
-                result += AudioChunk(output, "audio/mp4", output.name, range.lengthMs, range, true)
+                val actualStartMs = (actualStartUs / 1000L).coerceAtMost(range.startMs)
+                val adjustedRange = range.copy(startMs = actualStartMs)
+                result += AudioChunk(output, "audio/mp4", output.name, range.endMs - actualStartMs, adjustedRange, true)
             }
         } catch (failure: Throwable) {
             result.forEach { it.file.delete() }
