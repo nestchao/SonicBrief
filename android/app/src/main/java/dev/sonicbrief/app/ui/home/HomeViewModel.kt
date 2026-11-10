@@ -94,8 +94,13 @@ class HomeViewModel @Inject constructor(
         val current = _state.value
         if (current.submitting) return
         viewModelScope.launch {
-            if (!settings.current().hasApiKey) {
-                _state.update { it.copy(error = "Add your Gemini API key in Settings first.") }
+            val currentSettings = settings.current()
+            if (!currentSettings.hasApiKey) {
+                _state.update { it.copy(error = "Add your Gemini API key in Settings first. It is required for summarization.") }
+                return@launch
+            }
+            if (currentSettings.transcriptionProvider == "groq" && !settings.groqApiKey().let { !it.isNullOrBlank() }) {
+                _state.update { it.copy(error = "Add your Groq API key in Settings or switch the transcription provider to Gemini.") }
                 return@launch
             }
             _state.update { it.copy(submitting = true, error = null) }
