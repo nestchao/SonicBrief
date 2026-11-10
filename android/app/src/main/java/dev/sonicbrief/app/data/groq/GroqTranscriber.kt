@@ -212,11 +212,12 @@ class GroqTranscriber @Inject constructor(
             ranges.forEach { range ->
                 val output = File(cache, "chunk-${range.index}.m4a")
                 val muxer = MediaMuxer(output.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                var actualStartUs = range.startMs * 1000L
                 try {
                     val outTrack = muxer.addTrack(format)
                     muxer.start()
                     extractor.seekTo(range.startMs * 1000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
-                    val actualStartUs = extractor.sampleTime.takeIf { it >= 0L } ?: range.startMs * 1000L
+                    actualStartUs = extractor.sampleTime.takeIf { it >= 0L } ?: range.startMs * 1000L
                     val buffer = ByteBuffer.allocate(2 * 1024 * 1024)
                     val info = android.media.MediaCodec.BufferInfo()
                     while (true) {
