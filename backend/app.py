@@ -6,6 +6,8 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -95,7 +97,7 @@ async def lifespan(_: FastAPI):
     EXECUTOR.shutdown(wait=False, cancel_futures=False)
 
 
-app = FastAPI(title="SonicBrief Local API", version="0.1.7", lifespan=lifespan)
+app = FastAPI(title="SonicBrief Local API", version="0.1.9", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -126,9 +128,45 @@ def validate_summary_options(style: str, custom_instructions: str) -> tuple[str,
     return normalized_style, normalized_custom
 
 
+_ACTIVE_JOBS: dict[str, tuple[object, float]] = {}
+_ACTIVE_JOBS_LOCK = threading.Lock()
+
+
+def _run_pipeline(job_id: str, options: dict[str, object]) -> None:
+    try:
+        pipeline.run_job(job_id, **options)
+    finally:
+        with _ACTIVE_JOBS_LOCK:
+            _ACTIVE_JOBS.pop(job_id, None)
+
+
+def _reap_stalled_worker() -> None:
+    """Replace the single worker when a previous job's thread never finished.
+
+    A native call that hangs cannot be cancelled from Python, so the thread is left
+    behind; a fresh executor keeps the queue moving (the stall watchdog has already
+    marked the stuck job failed).
+    """
+    global EXECUTOR
+    now = time.monotonic()
+    with _ACTIVE_JOBS_LOCK:
+        stalled = [
+            job_id
+            for job_id, (future, started) in _ACTIVE_JOBS.items()
+            if not getattr(future, "done", lambda: True)() and now - started > pipeline.STALL_TIMEOUT_SECONDS
+        ]
+        for job_id in stalled:
+            _ACTIVE_JOBS.pop(job_id, None)
+    if stalled:
+        EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sonicbrief-worker")
+
+
 def submit_pipeline(job_id: str, **options: object) -> None:
     pipeline.register_job(job_id)
-    EXECUTOR.submit(pipeline.run_job, job_id, **options)
+    _reap_stalled_worker()
+    future = EXECUTOR.submit(_run_pipeline, job_id, options)
+    with _ACTIVE_JOBS_LOCK:
+        _ACTIVE_JOBS[job_id] = (future, time.monotonic())
 
 
 def validate_cloud_provider(cloud_provider: str, groq_model: str) -> tuple[str, str]:
@@ -160,6 +198,7 @@ def health() -> dict[str, object]:
         "database_path": str(config.DATABASE_PATH),
         "cuda_available": gpu,
         "device": "NVIDIA GPU" if gpu else "CPU mode",
+        "gpu_reason": pipeline.cuda_unavailable_reason(),
         "ffmpeg_available": pipeline.ffmpeg_available(),
         "gemini_configured": gemini_settings.is_configured(),
         "groq_configured": groq_settings.is_configured(),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
@@ -61,14 +62,170 @@ def check_cancelled(job_id: str) -> None:
         raise JobCancelled("Processing was cancelled by the user.")
 
 
+# A stuck native call (GPU that cannot execute, dead driver, stalled transfer) never
+# raises, so the job would sit at "processing" forever. Fail it with an explanation
+# instead, so the interface shows a real error and the queue can move on.
+STALL_TIMEOUT_SECONDS = int(os.getenv("SONICBRIEF_STALL_SECONDS", "900"))
+
+
+def stalled_seconds(updated_at: Any, now: "datetime.datetime | None" = None) -> float | None:
+    """Seconds since the job row last changed, or None when the timestamp is unusable."""
+    if not updated_at:
+        return None
+    try:
+        stamp = datetime.datetime.fromisoformat(str(updated_at))
+    except (TypeError, ValueError):
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=datetime.timezone.utc)
+    current = now or datetime.datetime.now(datetime.timezone.utc)
+    return max(0.0, (current - stamp).total_seconds())
+
+
+def is_stalled(record: dict[str, Any], timeout: float, now: "datetime.datetime | None" = None) -> bool:
+    """True when an in-flight job has not reported progress for longer than `timeout`."""
+    if record.get("status") != "processing":
+        return False
+    idle = stalled_seconds(record.get("updated_at"), now)
+    return idle is not None and idle > timeout
+
+
+def stall_message(seconds: float) -> str:
+    minutes = max(1, round(seconds / 60))
+    reason = cuda_unavailable_reason()
+    hint = f" {reason}" if reason else (
+        " GPU acceleration is the usual cause: install the CUDA pack that matches the GPU build, "
+        "or set SONICBRIEF_FORCE_CPU=1 in settings.env."
+    )
+    return (
+        f"Processing stalled: no progress for {minutes} minutes, so SonicBrief stopped waiting."
+        f"{hint} Run the job again."
+    )
+
+
+class StallWatchdog:
+    """Fails a job whose progress stops advancing for STALL_TIMEOUT_SECONDS."""
+
+    def __init__(self, job_id: str, timeout: float = STALL_TIMEOUT_SECONDS) -> None:
+        self._job_id = job_id
+        self._timeout = timeout
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._loop, name=f"stall-watch-{job_id[:8]}", daemon=True
+        )
+
+    def __enter__(self) -> "StallWatchdog":
+        self.start()
+        return self
+
+    def __exit__(self, *_exc: object) -> bool:
+        self.stop()
+        return False
+
+    def start(self) -> None:
+        if self._timeout > 0 and not self._thread.is_alive():
+            self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def _loop(self) -> None:
+        while not self._stop.wait(5.0):
+            try:
+                record = storage.get_job(self._job_id)
+            except KeyError:
+                return
+            except Exception:
+                continue
+            if not is_stalled(record, self._timeout):
+                if record.get("status") != "processing":
+                    return
+                continue
+            # Keep any transcript already produced: only the status changes.
+            storage.update_job(
+                self._job_id,
+                status="failed",
+                error=stall_message(stalled_seconds(record.get("updated_at")) or self._timeout),
+                stage_detail=None,
+            )
+            return
+
+
+_CUDA_LIB_CACHE: dict[str, str | None] = {}
+# Set once a CUDA call has actually failed at runtime, so later jobs skip the GPU.
+_CUDA_RUNTIME_FAILURE: str | None = None
+
+_CUDA_MATH_LIBS = ("cublas64_12.dll", "cublasLt64_12.dll", "cudnn64_9.dll")
+
+
+def _force_cpu_requested() -> bool:
+    return os.getenv("SONICBRIEF_FORCE_CPU", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def cuda_math_libs_error() -> str | None:
+    """Report why CUDA kernels cannot run, or None when the math libraries load.
+
+    `ctranslate2.get_cuda_device_count()` only asks the driver whether a GPU exists.
+    A CPU install (or a GPU install without the CUDA pack) still reports a device while
+    cuBLAS/cuDNN are absent, so CTranslate2 would pick CUDA and then fail on the first
+    encode — historically leaving the job frozen forever. Check the libraries themselves.
+    """
+    if os.name != "nt":
+        return None
+    if "" not in _CUDA_LIB_CACHE:
+        import ctypes
+
+        error: str | None = None
+        for name in _CUDA_MATH_LIBS:
+            try:
+                ctypes.WinDLL(name)
+            except OSError:
+                error = name
+                break
+        _CUDA_LIB_CACHE[""] = error
+    missing = _CUDA_LIB_CACHE[""]
+    return f"{missing} is not installed (the CUDA pack is missing)" if missing else None
+
+
+def cuda_unavailable_reason() -> str | None:
+    """Human-readable reason GPU acceleration is off, or None when CUDA is usable."""
+    if _force_cpu_requested():
+        return "GPU acceleration is disabled by SONICBRIEF_FORCE_CPU."
+    if _CUDA_RUNTIME_FAILURE is not None:
+        return f"GPU acceleration failed earlier in this session: {_CUDA_RUNTIME_FAILURE}"
+    libs_error = cuda_math_libs_error()
+    if libs_error is not None:
+        return f"GPU acceleration is unavailable because {libs_error}."
+    return None
+
+
 def cuda_available() -> bool:
-    # Portable CPU releases set this to avoid attempting CUDA without its DLLs.
-    if os.getenv("SONICBRIEF_FORCE_CPU", "").strip().lower() in {"1", "true", "yes", "on"}:
+    if _force_cpu_requested() or _CUDA_RUNTIME_FAILURE is not None:
+        return False
+    if cuda_math_libs_error() is not None:
         return False
     try:
         return ctranslate2.get_cuda_device_count() > 0
     except Exception:
         return False
+
+
+def note_cuda_failure(reason: str) -> None:
+    """Remember a runtime CUDA failure so subsequent jobs go straight to the CPU."""
+    global _CUDA_RUNTIME_FAILURE
+    if _CUDA_RUNTIME_FAILURE is None:
+        _CUDA_RUNTIME_FAILURE = reason.strip()[:200]
+
+
+def looks_like_cuda_failure(exc: BaseException) -> bool:
+    text = f"{exc}".lower()
+    return any(
+        marker in text
+        for marker in (
+            "cublas", "cudnn", "cuda", "gpu", "no kernel image",
+            "device-side assert", "cuda_error", "out of memory",
+        )
+    )
 
 
 def ffmpeg_available() -> bool:
@@ -404,7 +561,7 @@ def detect_spoken_language(model: Any, path: Path) -> str | None:
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(path),
                 "-t", "120", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(probe_file),
             ],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, check=False, timeout=60,
         )
         if result.returncode != 0:
             return None
@@ -548,7 +705,7 @@ def _clean_json_response(text: str) -> Any:
         ) from first_error
 
 
-def gemini_transcribe(path: Path, language: str) -> dict[str, Any]:
+def gemini_transcribe(path: Path, language: str, progress_callback: Any = None) -> dict[str, Any]:
     if not gemini_settings.is_configured():
         raise RuntimeError("Gemini fallback is not configured.")
     try:
@@ -556,9 +713,13 @@ def gemini_transcribe(path: Path, language: str) -> dict[str, Any]:
     except ImportError as exc:
         raise RuntimeError("The google-genai package is not installed.") from exc
 
+    if progress_callback:
+        progress_callback("transcribing", 0, 0.0, "Uploading audio to Gemini…")
     client = genai.Client(api_key=gemini_settings.get_gemini_api_key())
     selected_model = gemini_settings.get_gemini_model()
     uploaded = client.files.upload(file=str(path))
+    if progress_callback:
+        progress_callback("transcribing", 10, 0.0, "Gemini is transcribing the upload…")
     prompt = f"""
 Transcribe this audio accurately. The expected language is {language if language != 'auto' else 'auto-detect, including mixed languages'}.
 Return only valid JSON with this exact structure:
@@ -1114,6 +1275,8 @@ def run_job(
     cloud_provider: str = "local",
     groq_model: str = "",
 ) -> None:
+    watchdog = StallWatchdog(job_id)
+    watchdog.start()
     try:
         check_cancelled(job_id)
         storage.update_job(job_id, status="processing", progress=4, stage="acquire", error=None)
@@ -1177,25 +1340,39 @@ def run_job(
                 if cloud_provider == "groq":
                     result = groq_transcribe(normalized_path, language, groq_model, report_transcription)
                 else:
-                    result = gemini_transcribe(normalized_path, language)
+                    result = gemini_transcribe(normalized_path, language, report_transcription)
             else:
                 try:
                     check_cancelled(job_id)
                     result = local_transcribe(normalized_path, model_name, language, report_transcription)
                 except Exception as local_error:
-                    if not allow_gemini_fallback:
-                        raise RuntimeError(f"Local transcription failed: {local_error}") from local_error
-                    if not gemini_settings.is_configured():
-                        raise RuntimeError(
-                            f"Local transcription failed and optional Gemini fallback is not configured: {local_error}"
-                        ) from local_error
-                    storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
-                    result = gemini_transcribe(normalized_path, language)
+                    # A GPU that cannot actually execute (missing CUDA pack, driver reset)
+                    # must degrade to the CPU instead of failing or freezing the job.
+                    recovered_on_cpu = False
+                    if cuda_math_libs_error() is None and looks_like_cuda_failure(local_error) and not _force_cpu_requested():
+                        note_cuda_failure(str(local_error))
+                        storage.add_warning(
+                            job_id,
+                            "GPU acceleration failed, so SonicBrief is transcribing on the CPU instead. "
+                            "Install the CUDA pack for the GPU build to speed this up.",
+                        )
+                        check_cancelled(job_id)
+                        result = local_transcribe(normalized_path, model_name, language, report_transcription)
+                        recovered_on_cpu = True
+                    if not recovered_on_cpu:
+                        if not allow_gemini_fallback:
+                            raise RuntimeError(f"Local transcription failed: {local_error}") from local_error
+                        if not gemini_settings.is_configured():
+                            raise RuntimeError(
+                                f"Local transcription failed and optional Gemini fallback is not configured: {local_error}"
+                            ) from local_error
+                        storage.add_warning(job_id, f"Local transcription failed; Gemini fallback was used: {local_error}")
+                        result = gemini_transcribe(normalized_path, language, report_transcription)
                 else:
                     if transcript_needs_fallback(result):
                         if allow_gemini_fallback and gemini_settings.is_configured():
                             storage.add_warning(job_id, "Local transcription quality was low, so Gemini fallback was used.")
-                            result = gemini_transcribe(normalized_path, language)
+                            result = gemini_transcribe(normalized_path, language, report_transcription)
                         elif allow_gemini_fallback:
                             storage.add_warning(job_id, "Local transcription confidence was low; optional Gemini fallback is not configured.")
                         else:
@@ -1247,6 +1424,7 @@ def run_job(
         else:
             storage.update_job(job_id, status="failed", error=str(exc), progress=100)
     finally:
+        watchdog.stop()
         clear_job(job_id)
         if upload_path:
             try:

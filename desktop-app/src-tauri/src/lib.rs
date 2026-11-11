@@ -189,6 +189,9 @@ fn spawn_server(shared: &Shared) -> Result<(), String> {
         .env("SONICBRIEF_ENV_FILE", home.join("settings.env"))
         .env("HF_HOME", home.join("models"))
         .env("XDG_CACHE_HOME", home.join("cache"))
+        // Unbuffered stdout/stderr: a hung worker used to take its log lines with it,
+        // which made "stuck at 25%" impossible to diagnose after the fact.
+        .env("PYTHONUNBUFFERED", "1")
         .stdin(Stdio::null())
         .stdout(log)
         .stderr(log_err)
