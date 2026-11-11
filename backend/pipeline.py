@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -162,6 +163,35 @@ def _force_cpu_requested() -> bool:
     return os.getenv("SONICBRIEF_FORCE_CPU", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _cuda_search_dirs() -> list[str]:
+    """Folders where the CUDA pack may live, mirroring sonicbrief_server.prepare_environment."""
+    dirs: list[str] = []
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        dirs.append(os.path.join(local, "SonicBrief", "cuda"))
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    dirs.append(os.path.join(exe_dir, "cuda"))
+    dirs.extend(part for part in os.environ.get("PATH", "").split(os.pathsep) if part)
+    return dirs
+
+
+def _find_cuda_library(name: str) -> str | None:
+    """Absolute path of a CUDA DLL in the app's search folders, or None.
+
+    Look the file up explicitly: `ctypes.WinDLL("cublas64_12.dll")` does not search PATH
+    the way CTranslate2's own loader does, so a bare name reported a false "missing" and
+    would have forced GPU users onto the CPU.
+    """
+    for folder in _cuda_search_dirs():
+        candidate = os.path.join(folder, name)
+        try:
+            if os.path.isfile(candidate):
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def cuda_math_libs_error() -> str | None:
     """Report why CUDA kernels cannot run, or None when the math libraries load.
 
@@ -177,8 +207,17 @@ def cuda_math_libs_error() -> str | None:
 
         error: str | None = None
         for name in _CUDA_MATH_LIBS:
+            found = _find_cuda_library(name)
+            if found is None:
+                error = name
+                break
             try:
-                ctypes.WinDLL(name)
+                # Let the DLL resolve its own siblings (cublas <-> cublasLt <-> cudnn).
+                os.add_dll_directory(os.path.dirname(found))
+            except (AttributeError, OSError):
+                pass
+            try:
+                ctypes.WinDLL(found)
             except OSError:
                 error = name
                 break

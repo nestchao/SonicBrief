@@ -3,10 +3,16 @@
 Regression tests for the "stuck at 25%" class of failure: the app reported CUDA as
 available (the driver enumerated a GPU) while cuBLAS/cuDNN were not installed, so
 ctranslate2 failed inside a native call and the job never advanced again.
+
+Also pins the follow-up bug: `ctypes.WinDLL("cublas64_12.dll")` does not search PATH,
+so a pack installed into %LOCALAPPDATA%\\SonicBrief\\cuda was reported as missing and
+GPU users were silently pushed onto the CPU.
 """
 
 import datetime
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -26,18 +32,29 @@ class CudaGuardTests(unittest.TestCase):
     tearDown = setUp
 
     def test_missing_math_libs_reported_even_when_a_device_exists(self):
-        with mock.patch("ctypes.WinDLL", side_effect=OSError("not found")), \
+        with mock.patch.object(pipeline, "_find_cuda_library", return_value=None), \
              mock.patch.object(pipeline.ctranslate2, "get_cuda_device_count", return_value=1):
             self.assertFalse(pipeline.cuda_available())
             reason = pipeline.cuda_unavailable_reason()
             self.assertIsNotNone(reason)
             self.assertIn("CUDA pack", reason)
 
-    def test_usable_libs_keep_cuda_enabled(self):
-        with mock.patch("ctypes.WinDLL", return_value=object()), \
+    def test_present_libs_keep_cuda_enabled(self):
+        with mock.patch.object(pipeline, "_find_cuda_library", return_value=r"C:\x\cublas64_12.dll"), \
+             mock.patch("ctypes.WinDLL", return_value=object()), \
              mock.patch.object(pipeline.ctranslate2, "get_cuda_device_count", return_value=1):
             self.assertTrue(pipeline.cuda_available())
             self.assertIsNone(pipeline.cuda_unavailable_reason())
+
+    def test_library_is_found_through_path_without_ctypes(self):
+        """The pack lives in a folder the app adds to PATH; a bare WinDLL name missed it."""
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, "cublas64_12.dll").write_bytes(b"stub")
+            with mock.patch.dict(os.environ, {"PATH": folder, "LOCALAPPDATA": folder + "\\none"}, clear=False):
+                self.assertEqual(
+                    pipeline._find_cuda_library("cublas64_12.dll"),
+                    os.path.join(folder, "cublas64_12.dll"),
+                )
 
     def test_runtime_failure_downgrades_to_cpu_for_later_jobs(self):
         pipeline.note_cuda_failure("Library cublas64_12.dll is not found or cannot be loaded")
@@ -69,7 +86,6 @@ class StallDetectionTests(unittest.TestCase):
 
     def test_job_without_progress_is_stalled(self):
         record = {"status": "processing", "updated_at": "2026-11-11T16:05:00+00:00"}
-        # 15 minutes idle: past a 14-minute limit, still inside a 16-minute one.
         self.assertTrue(pipeline.is_stalled(record, 840, NOW))
         self.assertFalse(pipeline.is_stalled(record, 960, NOW))
 
@@ -78,7 +94,7 @@ class StallDetectionTests(unittest.TestCase):
         self.assertFalse(pipeline.is_stalled(record, 60, NOW))
 
     def test_stall_message_explains_the_gpu_culprit(self):
-        with mock.patch("ctypes.WinDLL", side_effect=OSError("nope")):
+        with mock.patch.object(pipeline, "_find_cuda_library", return_value=None):
             message = pipeline.stall_message(900)
         self.assertIn("stalled", message.lower())
         self.assertIn("15 minutes", message)
