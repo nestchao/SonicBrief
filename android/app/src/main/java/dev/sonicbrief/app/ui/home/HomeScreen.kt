@@ -60,6 +60,7 @@ import dev.sonicbrief.app.ui.components.SoftCard
 import dev.sonicbrief.app.ui.components.SonicTextField
 import dev.sonicbrief.app.ui.components.StageTimeline
 import dev.sonicbrief.app.ui.components.StatusPill
+import dev.sonicbrief.app.ui.components.WarningNote
 import dev.sonicbrief.app.ui.components.pillLabel
 import dev.sonicbrief.app.ui.components.pillTone
 import dev.sonicbrief.app.ui.icons.SonicIcons
@@ -550,6 +551,14 @@ private fun OptionsCard(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+        if (state.provider == dev.sonicbrief.app.domain.model.ProcessingProvider.GROQ && !state.hasGeminiKey) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Groq transcribes; summaries still need a Gemini key. Add one in Settings or the transcript will finish without a summary.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         Spacer(Modifier.height(20.dp))
         Text("Brief style", style = MaterialTheme.typography.titleSmall)
@@ -700,6 +709,10 @@ private fun RecentJobRow(job: Job, onClick: () -> Unit, onRetry: () -> Unit) {
                     modifier = Modifier.clickable(onClick = onRetry),
                 )
             }
+        }
+        if (job.summaryFailed) {
+            Spacer(Modifier.height(10.dp))
+            WarningNote(job.summaryFailureMessage)
         }
     }
 }

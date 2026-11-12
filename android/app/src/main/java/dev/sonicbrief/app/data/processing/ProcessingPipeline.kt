@@ -14,6 +14,7 @@ import dev.sonicbrief.app.data.settings.SettingsRepository
 import dev.sonicbrief.app.domain.model.JobStage
 import dev.sonicbrief.app.domain.model.JobStatus
 import dev.sonicbrief.app.domain.model.ProcessingProvider
+import dev.sonicbrief.app.domain.model.SUMMARY_FAILED_CODE
 import java.io.File
 import java.time.Instant
 import java.util.UUID
@@ -59,6 +60,10 @@ class ProcessingPipeline @Inject constructor(
                 ?: throw PipelineConfigurationException("Add your Gemini API key in Settings before processing media.")
             geminiKey to (job.model?.takeIf { it.isNotBlank() } ?: saved.model)
         }
+        // Summaries always run on Gemini, whatever transcribed the audio. Reusing the Groq key
+        // and whisper model here made every Groq job end as "Ready" with no summary (HTTP 404).
+        val summaryApiKey = settings.apiKey()
+        val summaryModel = saved.model
 
         var downloadDir: File? = null
         var prepared: PreparedAudio? = null
@@ -162,29 +167,35 @@ class ProcessingPipeline @Inject constructor(
             // A failed summary must not fail a good transcript: the transcript is saved
             // above, so the job completes and the summary can be regenerated from the
             // detail screen. Cancellation still propagates so cancelled jobs never complete.
-            report(JobStage.SUMMARIZING, "Writing summary", Bands.SUMMARY)
             var summaryError: String? = null
-            try {
-                val summaryText = summarizer.summarize(
-                    apiKey = apiKey,
-                    model = model,
-                    transcript = transcript,
-                    languageCode = job.summaryLanguage,
-                    instructions = job.customInstructions,
-                )
-                store.saveSummary(
-                    jobId = jobId,
-                    transcriptId = transcript.id,
-                    transcriptRevision = transcript.revision,
-                    language = job.summaryLanguage,
-                    content = summaryText,
-                    model = model,
-                    instructions = job.customInstructions,
-                )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                summaryError = failure.message?.takeIf { it.isNotBlank() } ?: "Summary failed."
+            if (summaryApiKey == null) {
+                // Groq-only users may never have saved a Gemini key. Say so instead of
+                // attempting a call that is guaranteed to be rejected.
+                summaryError = "Add your Gemini API key in Settings to generate summaries."
+            } else {
+                report(JobStage.SUMMARIZING, "Writing summary", Bands.SUMMARY)
+                try {
+                    val summaryText = summarizer.summarize(
+                        apiKey = summaryApiKey,
+                        model = summaryModel,
+                        transcript = transcript,
+                        languageCode = job.summaryLanguage,
+                        instructions = job.customInstructions,
+                    )
+                    store.saveSummary(
+                        jobId = jobId,
+                        transcriptId = transcript.id,
+                        transcriptRevision = transcript.revision,
+                        language = job.summaryLanguage,
+                        content = summaryText,
+                        model = summaryModel,
+                        instructions = job.customInstructions,
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    summaryError = failure.message?.takeIf { it.isNotBlank() } ?: "Summary failed."
+                }
             }
 
             val latest = store.get(jobId) ?: job
@@ -195,7 +206,7 @@ class ProcessingPipeline @Inject constructor(
                     progress = 100,
                     stageDetail = if (summaryError != null) "Transcript ready · summary failed — open to regenerate" else null,
                     model = model,
-                    errorCode = if (summaryError != null) "summary_failed" else null,
+                    errorCode = if (summaryError != null) SUMMARY_FAILED_CODE else null,
                     errorMessage = summaryError,
                     completedAt = Instant.now(),
                 ),

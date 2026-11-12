@@ -63,6 +63,7 @@ import dev.sonicbrief.app.ui.components.SoftCard
 import dev.sonicbrief.app.ui.components.SoftDivider
 import dev.sonicbrief.app.ui.components.SonicTextField
 import dev.sonicbrief.app.ui.components.StatusPill
+import dev.sonicbrief.app.ui.components.WarningNote
 import dev.sonicbrief.app.ui.components.pillLabel
 import dev.sonicbrief.app.ui.components.pillTone
 import dev.sonicbrief.app.ui.icons.SonicIcons
@@ -127,6 +128,16 @@ fun JobDetailScreen(
         }
         state.message?.let { message ->
             item { FeedbackRow(message, isError = false) }
+        }
+
+        // A completed job whose summary never landed used to look identical to a healthy one.
+        // Spell it out here, next to the regenerate controls, until a summary exists.
+        if (job?.summaryFailed == true && latestSummary == null) {
+            item {
+                Box(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                    WarningNote(job.summaryFailureMessage)
+                }
+            }
         }
 
         if (state.loading && state.transcripts.isEmpty()) {
@@ -403,7 +414,8 @@ private fun SummarySection(
                 Text("No summary for this revision", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Generate a summary from the transcript below.",
+                    state.job?.takeIf { it.summaryFailed }?.summaryFailureMessage
+                        ?: "Generate a summary from the transcript below.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

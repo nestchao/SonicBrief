@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -220,6 +222,35 @@ fun JobStatus.pillLabel(): String = when (this) {
     JobStatus.FAILED -> "Failed"
     JobStatus.CANCELLED -> "Cancelled"
     JobStatus.PAUSED -> "Paused"
+}
+
+/**
+ * Amber inline note for "the job finished, but a piece is missing" cases such as a failed
+ * summary. Deliberately softer than an error so a good transcript does not look broken.
+ */
+@Composable
+fun WarningNote(text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(WarningContainer)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Icons.Filled.Warning,
+            contentDescription = null,
+            tint = WarningOnContainer,
+            modifier = Modifier.size(15.dp),
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = WarningOnContainer,
+        )
+    }
 }
 
 /** Icon-led row used for settings entries and list items. */

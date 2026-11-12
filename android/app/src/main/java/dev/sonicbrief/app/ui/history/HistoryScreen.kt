@@ -50,6 +50,7 @@ import dev.sonicbrief.app.ui.components.ScreenHeader
 import dev.sonicbrief.app.ui.components.SoftCard
 import dev.sonicbrief.app.ui.components.SonicTextField
 import dev.sonicbrief.app.ui.components.StatusPill
+import dev.sonicbrief.app.ui.components.WarningNote
 import dev.sonicbrief.app.ui.components.pillLabel
 import dev.sonicbrief.app.ui.components.pillTone
 import dev.sonicbrief.app.ui.icons.SonicIcons
@@ -256,6 +257,11 @@ private fun LibraryCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+
+            if (job.summaryFailed) {
+                Spacer(Modifier.height(10.dp))
+                WarningNote(job.summaryFailureMessage)
             }
 
             Spacer(Modifier.height(12.dp))

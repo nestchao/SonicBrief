@@ -36,6 +36,9 @@ enum class SourceType {
 
 enum class TranscriptSourceKind { AUDIO, MANUAL_SUBTITLE, AUTOMATIC_CAPTION }
 
+/** [Job.errorCode] used when the transcript is saved but the Gemini summary never landed. */
+const val SUMMARY_FAILED_CODE = "summary_failed"
+
 data class Job(
     val id: UUID,
     val sourceType: SourceType,
@@ -66,15 +69,27 @@ data class Job(
         get() = title?.takeIf { it.isNotBlank() }
             ?: sourceFilename?.takeIf { it.isNotBlank() }
             ?: sourceUrl.orEmpty()
+
+    /**
+     * The transcript is saved but the summary never landed, so the job counts as completed
+     * while a piece of the user's brief is missing. Cards must not show a plain "Ready".
+     */
+    val summaryFailed: Boolean
+        get() = status == JobStatus.COMPLETED && errorCode == SUMMARY_FAILED_CODE
+
+    /** One-line reason for cards and the detail banner, with a fallback when it is blank. */
+    val summaryFailureMessage: String
+        get() = errorMessage?.takeIf { it.isNotBlank() }
+            ?: "Summary wasn't generated. Open the job to retry."
 }
 
 /**
- * A fresh summary means the job is done, even if an earlier pipeline stage (typically
- * summarization itself) left it FAILED. Transcript + summary now exist, so the FAILED
- * badge on Library/Home cards must go away. Jobs that already completed pass through.
+ * A fresh summary means the job is done, even if an earlier attempt left it FAILED, CANCELLED,
+ * or COMPLETED with a "summary failed" warning. Transcript + summary now exist, so the warning
+ * badges on Library/Home cards must go away. Healthy jobs pass through untouched.
  */
 fun Job.healedAfterSummary(now: Instant = Instant.now()): Job =
-    if (status == JobStatus.FAILED || status == JobStatus.CANCELLED) {
+    if (status == JobStatus.FAILED || status == JobStatus.CANCELLED || summaryFailed) {
         copy(
             status = JobStatus.COMPLETED,
             stage = JobStage.COMPLETED,
@@ -82,7 +97,7 @@ fun Job.healedAfterSummary(now: Instant = Instant.now()): Job =
             stageDetail = null,
             errorCode = null,
             errorMessage = null,
-            completedAt = now,
+            completedAt = completedAt ?: now,
         )
     } else {
         this
