@@ -31,6 +31,8 @@ class CudaGuardTests(unittest.TestCase):
 
     tearDown = setUp
 
+    # The DLL probe only runs on Windows; on Linux CTranslate2 loads the .so files itself.
+    @unittest.skipUnless(os.name == "nt", "CUDA DLL probe is Windows-only")
     def test_missing_math_libs_reported_even_when_a_device_exists(self):
         with mock.patch.object(pipeline, "_find_cuda_library", return_value=None), \
              mock.patch.object(pipeline.ctranslate2, "get_cuda_device_count", return_value=1):
@@ -39,6 +41,7 @@ class CudaGuardTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("CUDA pack", reason)
 
+    @unittest.skipUnless(os.name == "nt", "CUDA DLL probe is Windows-only")
     def test_present_libs_keep_cuda_enabled(self):
         with mock.patch.object(pipeline, "_find_cuda_library", return_value=r"C:\x\cublas64_12.dll"), \
              mock.patch("ctypes.WinDLL", return_value=object()), \
