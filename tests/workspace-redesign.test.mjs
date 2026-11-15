@@ -85,7 +85,7 @@ test("media URL input auto-detects an explicit supported-site allowlist", async 
     assert.ok(config.includes('"' + domain + '"'));
   }
   assert.match(pipeline, /host == domain or host\.endswith\("\." \+ domain\)/);
-  assert.match(pipeline, /Supported media links: YouTube, Bilibili, Vimeo, TikTok, X\/Twitter, SoundCloud, and Twitch/);
+  assert.match(pipeline, /"Supported media links: YouTube, Bilibili, Vimeo, TikTok, X\/Twitter, SoundCloud, "\s*"Twitch, Douyin, Instagram, and Facebook\."/);
   assert.match(app, /pipeline\.source_label\(source_type\)/);
   assert.doesNotMatch(pipeline, /Only YouTube and Bilibili links are supported/);
 });
@@ -140,7 +140,7 @@ test("Bilibili downloads retry interrupted transfers and report clean errors", a
   assert.match(pipeline, /"extractor_retries": 3/);
   assert.match(pipeline, /source_type == "bilibili"/);
   assert.match(pipeline, /"http_chunk_size".*5 \* 1024 \* 1024/);
-  assert.match(pipeline, /for attempt in range\(2\)/);
+  assert.match(pipeline, /for retry in range\(2\)/);
   assert.match(pipeline, /Media download was interrupted before the source finished sending the file/);
   assert.match(pipeline, /_ANSI_ESCAPE_PATTERN/);
 });
